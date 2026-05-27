@@ -1,37 +1,62 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 )
 
-func read_file(reader *os.File) {
-	bytes := make([]byte, 8)
+func getLinesChannel(f io.ReadCloser) <-chan string {
+	out := make(chan string)
 
-	for {
-		n, err := reader.Read(bytes)
-		if err != nil {
-			break
+	go func() {
+		defer close(out)
+		defer f.Close()
+
+		data := make([]byte, 8)
+		str := ""
+
+		for {
+			n, err := f.Read(data)
+			if err != nil {
+				break
+			}
+
+			data := data[:n]
+			if i := bytes.IndexByte(data, '\n'); i != -1 {
+				str += string(data[:i])
+				out <- str
+				data = data[i+1:]
+				str = ""
+			}
+
+			str += string(data)
 		}
 
-		str := string(bytes[:n])
+		if len(str) != 0 {
+			out <- str
+		}
+	}()
 
-		fmt.Printf("read: %s\n", str)
-	}
+	return out
 }
 
 func main() {
 	dir, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		log.Fatal("Dir get failed: ", err)
 	}
 	path := filepath.Join(dir, "messages.txt")
 	reader, err := os.Open(path)
 	defer reader.Close()
 	if err != nil {
-		panic(err)
+		log.Fatal("Read failed: ", err)
 	}
 
-	read_file(reader)
+	for line := range getLinesChannel(reader) {
+		fmt.Printf("read: %s\n", line)
+	}
 }
