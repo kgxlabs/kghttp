@@ -36,29 +36,31 @@ const (
 )
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
+	request := &Request{
+		Headers: headers.NewHeaders(),
+		state:   RequestStateInitialized,
+	}
 	buf := make([]byte, bufferSize, bufferSize)
 	readToIndex := 0
-	req := &Request{
-		state:   RequestStateInitialized,
-		Headers: headers.NewHeaders(),
-	}
 
-	for req.state != RequestStateDone {
-		// When we need to read more than buffer can accept, increase buffer size
+	for request.state != RequestStateDone {
+
+		// increase the buffer if cursor is beyond the current buffer size
 		if readToIndex >= len(buf) {
 			newBuf := make([]byte, len(buf)*2)
 			copy(newBuf, buf)
 			buf = newBuf
 		}
 
-		// Read source into buffer from the last read cursor to buffer capacity
 		numBytesRead, err := reader.Read(buf[readToIndex:])
 		if err != nil {
+			// Is it because we reach to an end
 			if errors.Is(err, io.EOF) {
-				// This is to handle connection closes (EOF) before a complete http request has been received
-				if req.state != RequestStateDone {
-					return nil, fmt.Errorf("incomplete request in state: %s, read n bytes on EOF: %d", req.state, numBytesRead)
+				if request.state != RequestStateDone {
+					return nil, fmt.Errorf("incomplete http request at state: %s, bytes read: %d", request.state, numBytesRead)
 				}
+
+				// we reached EOF and also is in done state, so get out of execution
 				break
 			}
 			return nil, err
@@ -66,18 +68,17 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 		readToIndex += numBytesRead
 
-		// Parse start to cursor to see if we have reached crlf
-		numBytesParsed, err := req.parse(buf[:readToIndex])
+		numBytesParsed, err := request.parse(buf[:readToIndex])
 		if err != nil {
 			return nil, err
 		}
 
-		// Exclude all the parsed bytes, only leave unparsed bytes behind
+		// Exclude already parsed bytes
 		copy(buf, buf[numBytesParsed:])
 		readToIndex -= numBytesParsed
 	}
 
-	return req, nil
+	return request, nil
 }
 
 func (r *Request) parse(data []byte) (int, error) {
@@ -94,6 +95,7 @@ func (r *Request) parse(data []byte) (int, error) {
 		if n == 0 {
 			break
 		}
+
 	}
 
 	return totalBytesParsed, nil
@@ -103,18 +105,17 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 	switch r.state {
 	case RequestStateInitialized:
 		requestLine, n, err := parseRequestLine(data)
-
 		if err != nil {
 			return 0, err
 		}
 
-		// Need more data, have not reached crlf to be parsed
 		if n == 0 {
 			return 0, nil
 		}
 
-		r.RequestLine = *requestLine
 		r.state = RequestStateParsingHeaders
+		r.RequestLine = *requestLine
+
 		return n, nil
 	case RequestStateParsingHeaders:
 		n, done, err := r.Headers.Parse(data)
@@ -128,12 +129,10 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 
 		return n, nil
 	case RequestStateDone:
-		return 0, errors.New("Error trying to read in done state")
+		return 0, fmt.Errorf("trying to read in done state: %s", r.state)
 	default:
-		return 0, errors.New("Unsupported request state")
-
+		return 0, fmt.Errorf("invalid request state: %s", r.state)
 	}
-
 }
 
 func parseRequestLine(data []byte) (*RequestLine, int, error) {
