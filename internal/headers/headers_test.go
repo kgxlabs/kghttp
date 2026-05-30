@@ -49,15 +49,7 @@ func TestHeadersParse(t *testing.T) {
 	assert.Equal(t, 2, n)
 	assert.True(t, done)
 
-	// Test: Invalid spacing header
-	headers = NewHeaders()
-	data = []byte("       Host: localhost:42069\r\n\r\n")
-	n, done, err = headers.Parse(data)
-	require.Error(t, err)
-	assert.Equal(t, 0, n)
-	assert.False(t, done)
-
-	// Test: Capital header key
+	// Test: Valid capital header key
 	headers = NewHeaders()
 	data = []byte("Host: localhost:42069\r\n\r\n")
 	n, done, err = headers.Parse(data)
@@ -67,6 +59,22 @@ func TestHeadersParse(t *testing.T) {
 	assert.Equal(t, 23, n)
 	assert.False(t, done)
 
+	// Test: Valid header multiple values
+	headers = map[string]string{"set-person": "kg-loves-ts"}
+	data = []byte("Set-Person: kg-loves-go\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	require.NotNil(t, headers)
+	assert.Equal(t, "kg-loves-ts, kg-loves-go", headers["set-person"])
+
+	// Test: Invalid spacing header
+	headers = NewHeaders()
+	data = []byte("       Host: localhost:42069\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.Error(t, err)
+	assert.Equal(t, 0, n)
+	assert.False(t, done)
+
 	// Test: Invalid key header
 	headers = NewHeaders()
 	data = []byte("H@st: localhost:42069\r\n\r\n")
@@ -74,4 +82,5 @@ func TestHeadersParse(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 0, n)
 	assert.False(t, done)
+
 }

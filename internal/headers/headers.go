@@ -48,6 +48,11 @@ func (h Headers) Parse(data []byte) (int, bool, error) {
 
 func (h Headers) Set(key string, value string) {
 	key = strings.ToLower(key)
+	if old, ok := h[key]; ok {
+		h[key] = old + ", " + value
+		return
+	}
+
 	h[key] = value
 }
 
