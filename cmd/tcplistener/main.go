@@ -22,17 +22,17 @@ func main() {
 
 		fmt.Println("Connection is accepted")
 
-		requestLine, err := request.RequestFromReader(conn)
+		request, err := request.RequestFromReader(conn)
 		if err != nil {
 			log.Fatal(err)
 		}
 
 		fmt.Println("Request line: ")
-		fmt.Printf("- Method: %s\n", requestLine.RequestLine.Method)
-		fmt.Printf("- Target: %s\n", requestLine.RequestLine.RequestTarget)
-		fmt.Printf("- Version: %s\n", requestLine.RequestLine.HttpVersion)
+		fmt.Printf("- Method: %s\n", request.RequestLine.Method)
+		fmt.Printf("- Target: %s\n", request.RequestLine.RequestTarget)
+		fmt.Printf("- Version: %s\n", request.RequestLine.HttpVersion)
 		fmt.Println("Headers: ")
-		for name, value := range requestLine.Headers {
+		for name, value := range request.Headers {
 			fmt.Printf("- %s: %s\n", name, value)
 		}
 	}
