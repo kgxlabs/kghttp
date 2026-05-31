@@ -6,14 +6,17 @@ import (
 	"fmt"
 	"go-http-server/internal/headers"
 	"io"
+	"strconv"
 	"strings"
 	"unicode"
 )
 
 type Request struct {
-	RequestLine RequestLine
-	Headers     headers.Headers
-	state       RequestState
+	RequestLine    RequestLine
+	Headers        headers.Headers
+	Body           []byte
+	bodyLengthRead int
+	state          RequestState
 }
 
 type RequestState string
@@ -22,6 +25,7 @@ const (
 	RequestStateInitialized    RequestState = "initialized"
 	RequestStateDone           RequestState = "done"
 	RequestStateParsingHeaders RequestState = "parsingHeaders"
+	RequestStateParsingBody    RequestState = "parsingBody"
 )
 
 type RequestLine struct {
@@ -124,10 +128,34 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 		}
 
 		if done {
-			r.state = RequestStateDone
+			r.state = RequestStateParsingBody
 		}
 
 		return n, nil
+	case RequestStateParsingBody:
+		contentLengthStr, ok := r.Headers.Get("content-length")
+		if !ok {
+			r.state = RequestStateDone
+			return len(data), nil
+		}
+
+		contentLen, err := strconv.Atoi(contentLengthStr)
+		if err != nil {
+			return 0, fmt.Errorf("malformed content length: %s", err)
+		}
+
+		// This is different from the assignment solution (They append the bytes (both invalid and valid) and then return with err)
+		// This is better solution.This is how parsers for keep alive connection usually works
+		remaining := contentLen - r.bodyLengthRead
+		consume := min(len(data), remaining)
+
+		r.Body = append(r.Body, data[:consume]...)
+		r.bodyLengthRead += consume
+
+		if r.bodyLengthRead == contentLen {
+			r.state = RequestStateDone
+		}
+		return len(data), nil
 	case RequestStateDone:
 		return 0, fmt.Errorf("trying to read in done state: %s", r.state)
 	default:
