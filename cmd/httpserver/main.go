@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 )
 
@@ -26,10 +27,6 @@ func main() {
 	log.Println("Server gracefully stopped")
 }
 
-// NOTE: Our user supplied handler func is a bit wonky.
-// In the event of error, it returns HandlerError let the HandlerError.Write do the thing.
-// But in the event of success, it handles the writing by itself by doing `w.Write`.
-// TODO: Refactor that.
 func handler(w *response.Writer, req *request.Request) {
 	if req.RequestLine.RequestTarget == "/yourproblem" {
 		writeBadRequestError(w)
@@ -57,9 +54,10 @@ func writeResponse(w *response.Writer) {
 </html>
 	`
 
-	w.WriteStatusLine(response.StatusOK)
-	w.Headers.Set("content-type", "text/html")
-	w.Headers.Set("connection", "close")
+	w.Headers().Set("content-length", strconv.Itoa(len(body)))
+	w.Headers().Set("content-type", "text/html")
+	w.Headers().Set("connection", "close")
+	w.WriteHeaders(response.StatusOK)
 	w.WriteBody([]byte(body))
 }
 
@@ -76,9 +74,10 @@ func writeBadRequestError(w *response.Writer) {
 </html>
 	`
 
-	w.WriteStatusLine(response.StatusBadRequest)
-	w.Headers.Set("content-type", "text/html")
-	w.Headers.Set("connection", "close")
+	w.Headers().Set("content-length", strconv.Itoa(len(body)))
+	w.Headers().Set("content-type", "text/html")
+	w.Headers().Set("connection", "close")
+	w.WriteHeaders(response.StatusBadRequest)
 	w.WriteBody([]byte(body))
 }
 
@@ -95,8 +94,9 @@ func writeInternalServerError(w *response.Writer) {
 </html>
 	`
 
-	w.WriteStatusLine(response.StatusInternalServerError)
-	w.Headers.Set("content-type", "text/html")
-	w.Headers.Set("connection", "close")
+	w.Headers().Set("content-length", strconv.Itoa(len(body)))
+	w.Headers().Set("content-type", "text/html")
+	w.Headers().Set("connection", "close")
+	w.WriteHeaders(response.StatusInternalServerError)
 	w.WriteBody([]byte(body))
 }

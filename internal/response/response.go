@@ -4,8 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"go-http-server/internal/headers"
-	"log"
-	"strconv"
+	"io"
 )
 
 type StatusCode int
@@ -17,73 +16,82 @@ const (
 )
 
 type Writer struct {
-	Headers     headers.Headers
-	StatusCode  StatusCode
-	body        bytes.Buffer
-	response    bytes.Buffer
+	writer      io.Writer
+	headers     headers.Headers
 	writerState writerState
 }
 
 type writerState string
 
 const (
-	writerStateWritingStatusLine writerState = "writingStatusLine"
-	writerStateHeaders           writerState = "writingHeaders"
-	writerStateBody              writerState = "writingBody"
+	writerStateWritingHeaders writerState = "writingHeaders"
+	writerStateWritingBody    writerState = "writingBody"
 )
 
-func (w *Writer) ResponseBytes() []byte {
-	w.Headers.Set("Content-Length", strconv.Itoa(w.body.Len()))
-
-	if err := w.serializeStatusLine(); err != nil {
-		log.Printf("failed to serialize status line: %v", err)
-		return []byte{}
+func NewWriter(writer io.Writer) *Writer {
+	return &Writer{
+		writer:      writer,
+		writerState: writerStateWritingHeaders,
 	}
-
-	if err := w.serializeHeaders(); err != nil {
-		log.Printf("failed to serialize headers: %v", err)
-		return []byte{}
-	}
-
-	if _, err := w.response.Write(w.body.Bytes()); err != nil {
-		log.Printf("failed to serialize body: %v", err)
-		return []byte{}
-	}
-
-	return w.response.Bytes()
 }
 
-func (w *Writer) WriteStatusLine(statusCode StatusCode) {
-	w.StatusCode = statusCode
+func (w *Writer) Headers() headers.Headers {
+	if w.headers == nil {
+		w.headers = make(headers.Headers)
+	}
+	return w.headers
 }
 
-func (w *Writer) serializeStatusLine() error {
-	if _, err := w.response.Write(getStatusLine(w.StatusCode)); err != nil {
+func (w *Writer) WriteHeaders(statusCode StatusCode) error {
+	if w.writerState != writerStateWritingHeaders {
+		return fmt.Errorf("cannot write headers in state: %s", w.writerState)
+	}
+
+	statusLine := serializeStatusLine(statusCode)
+
+	if _, err := w.writer.Write(statusLine); err != nil {
 		return err
 	}
-	return nil
 
-}
-
-func (w *Writer) serializeHeaders() error {
-	headersStr := ""
-	for key, value := range w.Headers {
-		headersStr = headersStr + fmt.Sprintf("%s: %s\r\n", key, value)
-
-	}
-
-	headersStr = headersStr + "\r\n"
-	if _, err := w.response.Write([]byte(headersStr)); err != nil {
+	hs, err := serializeHeaders(w.headers)
+	if err != nil {
 		return err
 	}
+
+	if _, err := w.writer.Write(hs); err != nil {
+		return err
+	}
+
+	w.writerState = writerStateWritingBody
+
 	return nil
 }
 
 func (w *Writer) WriteBody(data []byte) (int, error) {
-	return w.body.Write(data)
+	if w.writerState != writerStateWritingBody {
+		return 0, fmt.Errorf("cannot write body at state: %s", w.writerState)
+	}
+
+	return w.writer.Write(data)
+
 }
 
-func getStatusLine(s StatusCode) []byte {
+func serializeHeaders(headers headers.Headers) ([]byte, error) {
+	var buf bytes.Buffer
+	for key, value := range headers {
+		if _, err := buf.Write([]byte(fmt.Sprintf("%s: %s\r\n", key, value))); err != nil {
+			return []byte{}, err
+		}
+	}
+
+	if _, err := buf.Write([]byte("\r\n")); err != nil {
+		return []byte{}, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func serializeStatusLine(s StatusCode) []byte {
 	return []byte(fmt.Sprintf("HTTP/1.1 %d %s\r\n", s, getReasonPhrase(s)))
 }
 

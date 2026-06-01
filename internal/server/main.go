@@ -2,11 +2,11 @@ package server
 
 import (
 	"fmt"
-	"go-http-server/internal/headers"
 	"go-http-server/internal/request"
 	"go-http-server/internal/response"
 	"log"
 	"net"
+	"strconv"
 	"sync/atomic"
 )
 
@@ -64,18 +64,18 @@ func (s *Server) listen() {
 
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
+	rw := response.NewWriter(conn)
+
 	req, err := request.RequestFromReader(conn)
 	if err != nil {
-		log.Printf("failed to read or parse request: %v", err)
+		body := []byte(fmt.Sprintf("failed to parse request: %v", err))
+		rw.Headers().Set("content-length", strconv.Itoa(len(body)))
+		rw.Headers().Set("content-type", "text/plain")
+		rw.Headers().Set("connection", "close")
+		rw.WriteHeaders(response.StatusInternalServerError)
+		rw.WriteBody(body)
 		return
 	}
 
-	rw := &response.Writer{
-		Headers: make(headers.Headers),
-	}
 	s.handler(rw, req)
-	if _, err := conn.Write(rw.ResponseBytes()); err != nil {
-		log.Printf("failed to write response: %v", err)
-		return
-	}
 }
