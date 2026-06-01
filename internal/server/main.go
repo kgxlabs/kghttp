@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"go-http-server/internal/request"
 	"go-http-server/internal/response"
-	"io"
 	"log"
 	"net"
 	"sync/atomic"
@@ -65,13 +64,18 @@ func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	request, err := request.RequestFromReader(conn)
 	if err != nil {
-		fmt.Printf("error %v\n", err)
+		hErr := &HandlerError{
+			StatusCode: response.StatusInternalServerError,
+			Message:    err.Error(),
+		}
+		hErr.Write(conn)
+		return
 	}
 
 	var buf bytes.Buffer
 	handlerError := s.handler(&buf, request)
 	if handlerError != nil {
-		writeError(conn, *handlerError)
+		handlerError.Write(conn)
 		return
 	}
 
@@ -91,23 +95,4 @@ func (s *Server) handle(conn net.Conn) {
 		return
 	}
 
-}
-
-func writeError(w io.Writer, handlerError HandlerError) {
-
-	if err := response.WriteStatusLine(w, response.StatusCode(handlerError.StatusCode)); err != nil {
-		log.Printf("failed to write error status line: %v", err)
-		return
-	}
-
-	headers := response.GetDefaultHeaders(len(handlerError.Message))
-	if err := response.WriteHeaders(w, headers); err != nil {
-		log.Printf("failed to write error headers: %v", err)
-		return
-	}
-
-	if _, err := w.Write([]byte(handlerError.Message)); err != nil {
-		log.Printf("failed to write error body: %v", err)
-		return
-	}
 }

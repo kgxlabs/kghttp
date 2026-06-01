@@ -2,7 +2,6 @@ package main
 
 import (
 	"go-http-server/internal/request"
-	"go-http-server/internal/response"
 	"go-http-server/internal/server"
 	"io"
 	"log"
@@ -32,7 +31,7 @@ func main() {
 		if _, err := w.Write([]byte("All good, frfr\n")); err != nil {
 			return &server.HandlerError{
 				StatusCode: 500,
-				Message:    response.GetStatusCodeMessage(response.StatusInternalServerError),
+				Message:    "Internal Server Error",
 			}
 		}
 
