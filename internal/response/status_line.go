@@ -13,7 +13,7 @@ const (
 	StatusInternalServerError StatusCode = 500
 )
 
-func (s StatusCode) String() string {
+func GetStatusCodeMessage(s StatusCode) string {
 	switch s {
 	case 200:
 		return "OK"
@@ -26,9 +26,12 @@ func (s StatusCode) String() string {
 	}
 }
 
+func getStatusLine(s StatusCode) []byte {
+	return []byte(fmt.Sprintf("HTTP/1.1 %d %s\r\n", s, GetStatusCodeMessage(s)))
+}
+
 func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
-	statusLine := fmt.Sprintf("HTTP/1.1 %d %s\r\n", statusCode, StatusCode(statusCode))
-	_, err := w.Write([]byte(statusLine))
+	_, err := w.Write(getStatusLine(statusCode))
 	if err != nil {
 		return err
 	}
