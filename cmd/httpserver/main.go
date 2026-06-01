@@ -26,6 +26,10 @@ func main() {
 	log.Println("Server gracefully stopped")
 }
 
+// NOTE: Our user supplied handler func is a bit wonky.
+// In the event of error, it returns HandlerError let the HandlerError.Write do the thing.
+// But in the event of success, it handles the writing by itself by doing `w.Write`.
+// TODO: Refactor that.
 func handler(w io.Writer, req *request.Request) *server.HandlerError {
 	if req.RequestLine.RequestTarget == "/yourproblem" {
 		return &server.HandlerError{
