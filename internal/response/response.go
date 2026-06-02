@@ -18,14 +18,16 @@ const (
 type Writer struct {
 	writer      io.Writer
 	headers     headers.Headers
+	trailers    headers.Headers
 	writerState writerState
 }
 
 type writerState string
 
 const (
-	writerStateWritingHeaders writerState = "writingHeaders"
-	writerStateWritingBody    writerState = "writingBody"
+	writerStateWritingHeaders  writerState = "writingHeaders"
+	writerStateWritingBody     writerState = "writingBody"
+	writerStateWritingTrailers writerState = "writingTrailers"
 )
 
 func NewWriter(writer io.Writer) *Writer {
@@ -89,15 +91,45 @@ func (w *Writer) WriteChunkedBody(data []byte) (int, error) {
 	chunkedData = append(chunkedData, hexLen...)
 	if dataLen > 0 {
 		chunkedData = append(chunkedData, data...)
+		chunkedData = append(chunkedData, []byte("\r\n")...)
 	}
-	chunkedData = append(chunkedData, []byte("\r\n")...)
 
 	n, err := w.writer.Write(chunkedData)
 	return n, err
 }
 
 func (w *Writer) WriteChunkedBodyDone() (int, error) {
-	return w.WriteChunkedBody([]byte{})
+	n, err := w.WriteChunkedBody([]byte{})
+	if err != nil {
+		return 0, err
+	}
+
+	if err = w.WriteTrailers(); err != nil {
+		return 0, err
+	}
+
+	return n, nil
+}
+
+func (w *Writer) Trailers() headers.Headers {
+	if w.trailers == nil {
+		w.trailers = make(headers.Headers)
+	}
+
+	return w.trailers
+}
+
+func (w *Writer) WriteTrailers() error {
+	ts, err := serializeHeaders(w.trailers)
+	if err != nil {
+		return err
+	}
+
+	if _, err := w.writer.Write(ts); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func serializeHeaders(headers headers.Headers) ([]byte, error) {

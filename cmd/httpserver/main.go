@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"go-http-server/internal/request"
@@ -65,11 +66,14 @@ func httpBinProxyHandler(w *response.Writer, req *request.Request) {
 
 	w.Headers().Set("connection", resp.Header.Get("connection"))
 	w.Headers().Set("transfer-encoding", "chunked")
-	w.Headers().Set("trailer", resp.Header.Get("trailer"))
 	w.Headers().Set("content-type", resp.Header.Get("content-type"))
+	w.Headers().Set("trailer", "X-Content-SHA256 X-Content-Length")
 	w.WriteHeaders(response.StatusCode(resp.StatusCode))
 
 	buf := make([]byte, 1024)
+	h := sha256.New()
+	totalN := 0
+
 	for {
 		n, err := resp.Body.Read(buf)
 
@@ -89,12 +93,19 @@ func httpBinProxyHandler(w *response.Writer, req *request.Request) {
 			fmt.Println("error writing chunked body ", err)
 			break
 		}
+
+		h.Write(buf[:n])
+		totalN += n
+
 	}
+
+	w.Trailers().Set("X-Content-SHA256", fmt.Sprintf("%x", h.Sum(nil)))
+	w.Trailers().Set("X-Content-Length", strconv.Itoa(totalN))
 
 	if _, err := w.WriteChunkedBodyDone(); err != nil {
 		fmt.Println("error writing chunked body done, ", err)
+		return
 	}
-
 }
 
 func writeResponse(w *response.Writer) {
