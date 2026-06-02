@@ -76,6 +76,30 @@ func (w *Writer) WriteBody(data []byte) (int, error) {
 
 }
 
+func (w *Writer) WriteChunkedBody(data []byte) (int, error) {
+	if w.writerState != writerStateWritingBody {
+		return 0, fmt.Errorf("cannot write body in state: %s", w.writerState)
+	}
+
+	dataLen := len(data)
+	hexLen := []byte(fmt.Sprintf("%x\r\n", dataLen))
+	totalSize := len(hexLen) + dataLen + 2
+
+	chunkedData := make([]byte, 0, totalSize)
+	chunkedData = append(chunkedData, hexLen...)
+	if dataLen > 0 {
+		chunkedData = append(chunkedData, data...)
+	}
+	chunkedData = append(chunkedData, []byte("\r\n")...)
+
+	n, err := w.writer.Write(chunkedData)
+	return n, err
+}
+
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	return w.WriteChunkedBody([]byte{})
+}
+
 func serializeHeaders(headers headers.Headers) ([]byte, error) {
 	var buf bytes.Buffer
 	for key, value := range headers {
@@ -93,6 +117,19 @@ func serializeHeaders(headers headers.Headers) ([]byte, error) {
 
 func serializeStatusLine(s StatusCode) []byte {
 	return []byte(fmt.Sprintf("HTTP/1.1 %d %s\r\n", s, getReasonPhrase(s)))
+}
+
+func GetStatusCode(s int) StatusCode {
+	switch s {
+	case 200:
+		return StatusOK
+	case 400:
+		return StatusBadRequest
+	case 500:
+		return StatusInternalServerError
+	default:
+		return StatusOK
+	}
 }
 
 func getReasonPhrase(s StatusCode) string {
