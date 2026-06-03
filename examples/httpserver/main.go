@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	kghttp "kg-http"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,9 +12,11 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/Kaung-HtetKyaw/kghttp"
 )
 
-const port = 42069
+const port = 8000
 const httpBinURL = "https://httpbin.org/"
 const httpBinPath = "/httpbin/"
 

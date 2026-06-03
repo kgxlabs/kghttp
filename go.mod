@@ -1,4 +1,4 @@
-module kg-http
+module github.com/Kaung-HtetKyaw/kghttp
 
 go 1.23.5
 
