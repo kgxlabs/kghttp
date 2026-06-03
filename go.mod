@@ -1,4 +1,4 @@
-module go-http-server
+module kg-http
 
 go 1.23.5
 
