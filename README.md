@@ -89,7 +89,6 @@ func main() {
 	defer server.Close()
 
 	fmt.Println("listening on :8080")
-	select {} // block until you call server.Close()
 }
 ```
 
