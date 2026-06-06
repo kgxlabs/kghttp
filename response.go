@@ -14,7 +14,7 @@ const (
 	StatusInternalServerError StatusCode = 500
 )
 
-type Writer struct {
+type ResponseWriter struct {
 	writer      io.Writer
 	headers     Headers
 	trailers    Headers
@@ -29,21 +29,21 @@ const (
 	writerStateWritingTrailers writerState = "writingTrailers"
 )
 
-func NewWriter(writer io.Writer) *Writer {
-	return &Writer{
+func NewWriter(writer io.Writer) *ResponseWriter {
+	return &ResponseWriter{
 		writer:      writer,
 		writerState: writerStateWritingHeaders,
 	}
 }
 
-func (w *Writer) Headers() Headers {
+func (w *ResponseWriter) Headers() Headers {
 	if w.headers == nil {
 		w.headers = make(Headers)
 	}
 	return w.headers
 }
 
-func (w *Writer) WriteHeaders(statusCode StatusCode) error {
+func (w *ResponseWriter) WriteHeaders(statusCode StatusCode) error {
 	if w.writerState != writerStateWritingHeaders {
 		return fmt.Errorf("cannot write headers in state: %s", w.writerState)
 	}
@@ -68,7 +68,7 @@ func (w *Writer) WriteHeaders(statusCode StatusCode) error {
 	return nil
 }
 
-func (w *Writer) WriteBody(data []byte) (int, error) {
+func (w *ResponseWriter) WriteBody(data []byte) (int, error) {
 	if w.writerState != writerStateWritingBody {
 		return 0, fmt.Errorf("cannot write body at state: %s", w.writerState)
 	}
@@ -76,7 +76,7 @@ func (w *Writer) WriteBody(data []byte) (int, error) {
 	return w.writer.Write(data)
 }
 
-func (w *Writer) WriteChunkedBody(data []byte) (int, error) {
+func (w *ResponseWriter) WriteChunkedBody(data []byte) (int, error) {
 	if w.writerState != writerStateWritingBody {
 		return 0, fmt.Errorf("cannot write body in state: %s", w.writerState)
 	}
@@ -96,20 +96,20 @@ func (w *Writer) WriteChunkedBody(data []byte) (int, error) {
 	return n, err
 }
 
-func (w *Writer) WriteChunkedBodyDone() (int, error) {
+func (w *ResponseWriter) WriteChunkedBodyDone() (int, error) {
 	n, err := w.WriteChunkedBody([]byte{})
 	if err != nil {
 		return 0, err
 	}
 
-	if err = w.WriteTrailers(); err != nil {
+	if err = w.writeTrailers(); err != nil {
 		return 0, err
 	}
 
 	return n, nil
 }
 
-func (w *Writer) Trailers() Headers {
+func (w *ResponseWriter) Trailers() Headers {
 	if w.trailers == nil {
 		w.trailers = make(Headers)
 	}
@@ -117,7 +117,7 @@ func (w *Writer) Trailers() Headers {
 	return w.trailers
 }
 
-func (w *Writer) WriteTrailers() error {
+func (w *ResponseWriter) writeTrailers() error {
 	ts, err := serializeHeaders(w.trailers)
 	if err != nil {
 		return err

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"github.com/Kaung-HtetKyaw/kghttp"
 	"io"
 	"net/http"
 	"os"
@@ -12,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-
-	"github.com/Kaung-HtetKyaw/kghttp"
 )
 
 const port = 8000
@@ -35,7 +34,7 @@ func main() {
 	fmt.Println("Server gracefully stopped")
 }
 
-func handler(w *kghttp.Writer, req *kghttp.Request) {
+func handler(w *kghttp.ResponseWriter, req *kghttp.Request) {
 	if strings.HasPrefix(req.RequestLine.RequestTarget, httpBinPath) {
 		httpBinProxyHandler(w, req)
 		return
@@ -59,7 +58,7 @@ func handler(w *kghttp.Writer, req *kghttp.Request) {
 	writeResponse(w)
 }
 
-func httpBinProxyHandler(w *kghttp.Writer, req *kghttp.Request) {
+func httpBinProxyHandler(w *kghttp.ResponseWriter, req *kghttp.Request) {
 	path := strings.TrimPrefix(req.RequestLine.RequestTarget, httpBinPath)
 	url := httpBinURL + path
 	resp, err := http.Get(url)
@@ -110,7 +109,7 @@ func httpBinProxyHandler(w *kghttp.Writer, req *kghttp.Request) {
 	}
 }
 
-func writeVideoResponse(w *kghttp.Writer) {
+func writeVideoResponse(w *kghttp.ResponseWriter) {
 	dir, err := os.Getwd()
 	if err != nil {
 		writeInternalServerError(w)
@@ -166,7 +165,7 @@ func writeVideoResponse(w *kghttp.Writer) {
 	}
 }
 
-func writeResponse(w *kghttp.Writer) {
+func writeResponse(w *kghttp.ResponseWriter) {
 	body := `
 	<html>
   <head>
@@ -186,7 +185,7 @@ func writeResponse(w *kghttp.Writer) {
 	w.WriteBody([]byte(body))
 }
 
-func writeBadRequestError(w *kghttp.Writer) {
+func writeBadRequestError(w *kghttp.ResponseWriter) {
 	body := `
 		<html>
   <head>
@@ -206,7 +205,7 @@ func writeBadRequestError(w *kghttp.Writer) {
 	w.WriteBody([]byte(body))
 }
 
-func writeInternalServerError(w *kghttp.Writer) {
+func writeInternalServerError(w *kghttp.ResponseWriter) {
 	body := `
 		<html>
   <head>

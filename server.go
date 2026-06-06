@@ -14,7 +14,7 @@ type Server struct {
 	stopped  atomic.Bool
 }
 
-type Handler func(w *Writer, req *Request)
+type Handler func(w *ResponseWriter, req *Request)
 
 func Serve(port int, handlerFunc Handler) (*Server, error) {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
