@@ -20,7 +20,11 @@ const httpBinURL = "https://httpbin.org/"
 const httpBinPath = "/httpbin/"
 
 func main() {
-	server, err := kghttp.Serve(port, handler)
+	server := &kghttp.Server{
+		Addr:    fmt.Sprintf(":%d", port),
+		Handler: handler,
+	}
+	err := server.ListenAndServe()
 	if err != nil {
 		fmt.Printf("Error starting server: %v\n", err)
 		return

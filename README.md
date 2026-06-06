@@ -188,6 +188,7 @@ There is **no keep-alive** support yet: the server does not read a second reques
 - **HTTP/1.1 only** — request lines must use `HTTP/1.1`; methods must be uppercase letters
 - **No TLS/HTTPS** — plain TCP only
 - **No HTTP/2**
+- No **HTTP Client**
 - **No request pipelining** — one request per connection, no queued responses on a live socket
 - **No keep-alive** — connection closes after the handler returns
 - **Limited status codes** — writer reason phrases for 200, 400, and 500 only

@@ -9,27 +9,29 @@ import (
 )
 
 type Server struct {
+	Addr     string
 	listener net.Listener
-	handler  Handler
+	Handler  Handler
 	stopped  atomic.Bool
 }
 
 type Handler func(w *ResponseWriter, req *Request)
 
-func Serve(port int, handlerFunc Handler) (*Server, error) {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+func (s *Server) ListenAndServe() error {
+	listener, err := net.Listen("tcp", s.Addr)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	server := &Server{
-		listener: listener,
-		handler:  handlerFunc,
-	}
+	s.listener = listener
 
-	go server.listen()
+	return s.Serve(listener)
+}
 
-	return server, nil
+func (s *Server) Serve(ln net.Listener) error {
+	go s.listen()
+
+	return nil
 }
 
 func (s *Server) Close() error {
@@ -75,5 +77,5 @@ func (s *Server) handle(conn net.Conn) {
 		return
 	}
 
-	s.handler(rw, req)
+	s.Handler(rw, req)
 }
