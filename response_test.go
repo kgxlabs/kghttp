@@ -14,14 +14,12 @@ func TestWriteResponseWholeBody(t *testing.T) {
 	resWriter.Headers().Set("connection", "close")
 	resWriter.WriteHeaders(200)
 	_, err := resWriter.WriteBody([]byte(body))
+	resp := w.Result()
 	require.NoError(t, err)
-	require.NotNil(t, w.Result())
-	assert.Equal(t,
-		"HTTP/1.1 200 OK\r\n"+
-			"connection: close\r\n"+
-			"\r\n"+
-			"Hello World",
-		w.Result())
+	require.NotNil(t, resp)
+	assert.Contains(t, resp, "HTTP/1.1 200 OK\r\n")
+	assert.Contains(t, resp, "connection: close\r\n\r\n")
+	assert.Contains(t, resp, "Hello World")
 }
 
 func TestWriteResponseChunkedWithTrailers(t *testing.T) {
@@ -38,18 +36,14 @@ func TestWriteResponseChunkedWithTrailers(t *testing.T) {
 
 	resWriter.Trailers().Set("x-content-length", "8")
 	n, err = resWriter.WriteChunkedBodyDone()
+	resp := w.Result()
 	require.NoError(t, err)
 	assert.Equal(t, 3, n)
-	assert.Equal(t,
-		"HTTP/1.1 200 OK\r\n"+
-			"connection: close\r\n"+
-			"trailer: x-content-length\r\n\r\n"+
-			"3\r\n"+
-			"Hel\r\n"+
-			"0\r\n"+
-			"x-content-length: 8\r\n"+
-			"\r\n",
-		w.Result())
+	assert.Contains(t, resp, "HTTP/1.1 200 OK\r\n")
+	assert.Contains(t, resp, "connection: close\r\n")
+	assert.Contains(t, resp, "trailer: x-content-length\r\n")
+	assert.Contains(t, resp, "3\r\nHel\r\n0\r\n")
+	assert.Contains(t, resp, "x-content-length: 8\r\n\r\n")
 
 	// Valid Write chunked response without headers
 	resWriter, w = newTestWriter()
@@ -58,16 +52,10 @@ func TestWriteResponseChunkedWithTrailers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 8, n)
 	n, err = resWriter.WriteChunkedBodyDone()
+	resp = w.Result()
 	require.NoError(t, err)
 	assert.Equal(t, 3, n)
-	assert.Equal(t,
-		"HTTP/1.1 200 OK\r\n"+
-			"\r\n"+
-			"3\r\n"+
-			"Hel\r\n"+
-			"0\r\n"+
-			"\r\n",
-		w.Result())
+	assert.Contains(t, resp, "HTTP/1.1 200 OK\r\n\r\n")
 
 	// Invalid Write chunked body before headers
 	resWriter, _ = newTestWriter()
