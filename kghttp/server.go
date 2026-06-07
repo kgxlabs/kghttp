@@ -9,10 +9,11 @@ import (
 )
 
 type Server struct {
-	Addr     string
-	listener net.Listener
-	Handler  Handler
-	stopped  atomic.Bool
+	Addr            string
+	Handler         Handler
+	IdleConnTimeOut int
+	listener        net.Listener
+	stopped         atomic.Bool
 }
 
 type Handler func(w *ResponseWriter, req *Request)
@@ -64,6 +65,7 @@ func (s *Server) listen() {
 
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
+
 	rw := NewWriter(conn)
 
 	req, err := RequestFromReader(conn)

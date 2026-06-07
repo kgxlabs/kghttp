@@ -1,4 +1,4 @@
-module github.com/Kaung-HtetKyaw/kghttp
+module github.com/Kaung-HtetKyaw/kgx
 
 go 1.23.5
 
