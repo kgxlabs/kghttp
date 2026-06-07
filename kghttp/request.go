@@ -47,7 +47,6 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	readToIndex := 0
 
 	for request.state != RequestStateDone {
-
 		// increase the buffer if cursor is beyond the current buffer size
 		if readToIndex >= len(buf) {
 			newBuf := make([]byte, len(buf)*2)

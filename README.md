@@ -9,10 +9,10 @@ The goal is not to replace the standard library or popular tools like `net/http`
 | Package | Status | Description |
 |---------|--------|-------------|
 | [`kghttp`](./kghttp) | **Available** | HTTP/1.1 server on raw TCP — request parsing, response serialization, chunked bodies, trailers |
-| `kgbuf` | Planned | Minimal buffered I/O (like `bufio`, but smaller and tailored to this stack) |
-| `kgroute` | Planned | Minimal HTTP router (Chi-like API, fewer features) |
-| `kgcache` | Planned | Small in-memory cache |
-| `kgdb` | Planned | Minimal embedded database |
+| `kgbuf` | **Coming Soon** | Minimal buffered I/O (like `bufio`, but smaller and tailored to this stack) |
+| `kgroute` | **Coming Soon** | Minimal HTTP router (Chi-like API, fewer features) |
+| `kgcache` | **Coming Soon** | Small in-memory cache |
+| `kgdb` | **Coming Soon** | Minimal embedded database |
 
 Package names may change as the stack grows. Each subdirectory is its own Go package under one module. See each package's `README.md` for API details and usage.
 
@@ -62,7 +62,7 @@ go test ./kghttp/...
     └── httpserver/
 ```
 
-Future packages (`kgbuf`, `kgroute`, `kgcache`, `kgdb`, …) will appear as sibling directories under the module root.
+Coming soon packages (`kgbuf`, `kgroute`, `kgcache`, `kgdb`, …) will appear as sibling directories under the module root.
 
 ## Philosophy
 
