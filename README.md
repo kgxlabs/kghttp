@@ -9,7 +9,7 @@ The goal is not to replace the standard library or popular tools like `net/http`
 | Package | Status | Description |
 |---------|--------|-------------|
 | [`kghttp`](./kghttp) | **Available** | HTTP/1.1 server on raw TCP — request parsing, response serialization, chunked bodies, trailers |
-| `kgbuf` | **Coming Soon** | Minimal buffered I/O (like `bufio`, but smaller and tailored to this stack) |
+| [`kgbuf`](./kgbuf) | **Available** | Minimal buffered reader utilities for this stack |
 | `kgroute` | **Coming Soon** | Minimal HTTP router (Chi-like API, fewer features) |
 | `kgcache` | **Coming Soon** | Small in-memory cache |
 | `kgdb` | **Coming Soon** | Minimal embedded database |
@@ -37,6 +37,7 @@ Import a package from the module root:
 
 ```go
 import "github.com/Kaung-HtetKyaw/kgx/kghttp"
+import "github.com/Kaung-HtetKyaw/kgx/kgbuf"
 ```
 
 Run tests for everything:
@@ -49,6 +50,7 @@ Run tests for a single package:
 
 ```bash
 go test ./kghttp/...
+go test ./kgbuf/...
 ```
 
 ## Repository layout
@@ -56,13 +58,15 @@ go test ./kghttp/...
 ```
 .
 ├── go.mod
+├── kgbuf/               # Minimal buffered reader utilities (available)
+│   └── README.md
 ├── kghttp/              # HTTP/1.1 server (available)
 │   └── README.md
 └── examples/            # Runnable demos (each with its own README)
     └── httpserver/
 ```
 
-Coming soon packages (`kgbuf`, `kgroute`, `kgcache`, `kgdb`, …) will appear as sibling directories under the module root.
+Coming soon packages (`kgroute`, `kgcache`, `kgdb`, …) will appear as sibling directories under the module root.
 
 ## Philosophy
 
