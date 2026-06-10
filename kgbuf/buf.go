@@ -15,9 +15,10 @@ type Reader struct {
 	reader io.Reader
 	r      int
 	w      int
+	size   int
 }
 
-const bufferSize = 4029
+const bufferSize = 4096
 
 var (
 	ErrReaderFailedToRead = errors.New("kgbuf: reader failed to read")
@@ -27,11 +28,58 @@ func NewReader(reader io.Reader) *Reader {
 	return &Reader{
 		buf:    make([]byte, bufferSize),
 		reader: reader,
+		size:   bufferSize,
+	}
+}
+
+func NewReaderSize(reader io.Reader, size int) *Reader {
+	return &Reader{
+		buf:    make([]byte, size),
+		reader: reader,
+		size:   size,
 	}
 }
 
 func (b *Reader) Buffered() int {
 	return b.w - b.r
+}
+
+func (b *Reader) Read(p []byte) (int, error) {
+	// number of unconsumed bytes are still below capacity of buffer
+	for b.w-b.r < cap(p) {
+		// grow if capacity is reached
+		if b.w >= cap(b.buf) {
+			newBuf := make([]byte, cap(b.buf)*2)
+			copy(newBuf, b.buf)
+			b.buf = newBuf
+		}
+
+		n, err := b.reader.Read(b.buf[b.w:])
+
+		if n > 0 {
+			b.w += n
+		}
+
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			return 0, err
+		}
+
+	}
+
+	// b.w-b.r => consumed bytes, if that is bigger than cap, only fill what cap can hold. If not fill everything
+	// And then +b.r to move read cursor
+	// Then, compact it
+	nextR := min(b.w-b.r, cap(p)) + b.r
+	n := copy(p, b.buf[b.r:nextR])
+	copy(b.buf, b.buf[nextR:])
+	b.w -= nextR
+	b.r = 0
+
+	return n, nil
 }
 
 func (b *Reader) ReadString(delim string) (string, error) {
@@ -44,17 +92,16 @@ func (b *Reader) ReadString(delim string) (string, error) {
 			b.r = 0
 		}
 
-		if b.w >= len(b.buf) {
-			newBuf := make([]byte, len(b.buf)*2)
+		if b.w >= cap(b.buf) {
+			newBuf := make([]byte, cap(b.buf)*2)
 			copy(newBuf, b.buf)
 			b.buf = newBuf
 		}
 
-		numBytesWrite := 0
 		// read from underlying reader and write to internal if data we have is not enough
 		n, err := b.reader.Read(b.buf[b.w:])
 		if n > 0 {
-			numBytesWrite = n
+			b.w += n
 		}
 
 		if err != nil {
@@ -64,7 +111,6 @@ func (b *Reader) ReadString(delim string) (string, error) {
 			return "", ErrReaderFailedToRead
 		}
 
-		b.w += numBytesWrite
 		i := bytes.Index(b.buf[b.r:], []byte(delim))
 
 		if i == -1 {
