@@ -2,6 +2,10 @@ package kghttp
 
 import (
 	"bytes"
+	"strings"
+
+	"github.com/Kaung-HtetKyaw/kgx/internal/testutil"
+	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -68,6 +72,156 @@ func TestWriteResponseChunkedWithTrailers(t *testing.T) {
 	n, err = resWriter.WriteChunkedBodyDone()
 	require.Error(t, err)
 	assert.Equal(t, 0, n)
+}
+
+func TestReadResponseStatusLine(t *testing.T) {
+	reader := kgbuf.NewReader(&testutil.ChunkedReader{
+		Data:            "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
+		NumBytesPerRead: 3,
+	})
+
+	resp, err := ReadResponse(reader, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "1.1", resp.StatusLine.HttpVersion)
+	assert.Equal(t, StatusOK, resp.StatusLine.StatusCode)
+	assert.Equal(t, "OK", resp.StatusLine.ReasonPhrase)
+
+	reader = kgbuf.NewReader(&testutil.ChunkedReader{
+		Data:            "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n",
+		NumBytesPerRead: 50,
+	})
+
+	resp, err = ReadResponse(reader, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, StatusInternalServerError, resp.StatusLine.StatusCode)
+	assert.Equal(t, "Internal Server Error", resp.StatusLine.ReasonPhrase)
+
+	reader = kgbuf.NewReader(&testutil.ChunkedReader{
+		Data:            "TCP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
+		NumBytesPerRead: 3,
+	})
+
+	_, err = ReadResponse(reader, nil)
+	require.Error(t, err)
+
+	reader = kgbuf.NewReader(&testutil.ChunkedReader{
+		Data:            "HTTP/1.1 OK\r\nContent-Length: 0\r\n\r\n",
+		NumBytesPerRead: 3,
+	})
+
+	_, err = ReadResponse(reader, nil)
+	require.Error(t, err)
+}
+
+func TestReadResponseHeaders(t *testing.T) {
+	reader := kgbuf.NewReader(&testutil.ChunkedReader{
+		Data: "HTTP/1.1 200 OK\r\n" +
+			"Content-Type: text/plain\r\n" +
+			"Connection: keep-alive\r\n" +
+			"\r\n",
+		NumBytesPerRead: 3,
+	})
+
+	resp, err := ReadResponse(reader, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "text/plain", resp.Headers["content-type"])
+	assert.Equal(t, "keep-alive", resp.Headers["connection"])
+
+	reader = kgbuf.NewReader(&testutil.ChunkedReader{
+		Data:            "HTTP/1.1 200 OK\r\n\r\n",
+		NumBytesPerRead: 3,
+	})
+
+	resp, err = ReadResponse(reader, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Empty(t, resp.Headers)
+
+	reader = kgbuf.NewReader(&testutil.ChunkedReader{
+		Data:            "HTTP/1.1 200 OK\r\nContent-Type: text/plain",
+		NumBytesPerRead: 3,
+	})
+
+	_, err = ReadResponse(reader, nil)
+	require.Error(t, err)
+}
+
+func TestReadResponseBody(t *testing.T) {
+	reader := kgbuf.NewReader(&testutil.ChunkedReader{
+		Data: "HTTP/1.1 200 OK\r\n" +
+			"Content-Length: 12\r\n" +
+			"\r\n" +
+			"Hello World!",
+		NumBytesPerRead: 3,
+	})
+
+	resp, err := ReadResponse(reader, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "Hello World!", string(resp.Body))
+
+	reader = kgbuf.NewReader(&testutil.ChunkedReader{
+		Data: "HTTP/1.1 200 OK\r\n" +
+			"Content-Length: 0\r\n" +
+			"\r\n",
+		NumBytesPerRead: 3,
+	})
+
+	resp, err = ReadResponse(reader, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "", string(resp.Body))
+
+	reader = kgbuf.NewReader(&testutil.ChunkedReader{
+		Data: "HTTP/1.1 200 OK\r\n" +
+			"Content-Length: 20\r\n" +
+			"\r\n" +
+			"partial content",
+		NumBytesPerRead: 3,
+	})
+
+	_, err = ReadResponse(reader, nil)
+	require.Error(t, err)
+
+	reader = kgbuf.NewReader(&testutil.ChunkedReader{
+		Data: "HTTP/1.1 200 OK\r\n" +
+			"\r\n" +
+			"ignored body",
+		NumBytesPerRead: 3,
+	})
+
+	resp, err = ReadResponse(reader, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "", string(resp.Body))
+}
+
+func TestReadResponseReadsMultipleResponses(t *testing.T) {
+	reader := kgbuf.NewReader(strings.NewReader(
+		"HTTP/1.1 200 OK\r\n" +
+			"Content-Length: 5\r\n" +
+			"\r\n" +
+			"first" +
+			"HTTP/1.1 500 Internal Server Error\r\n" +
+			"Content-Length: 6\r\n" +
+			"\r\n" +
+			"second",
+	))
+
+	resp, err := ReadResponse(reader, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, StatusOK, resp.StatusLine.StatusCode)
+	assert.Equal(t, "first", string(resp.Body))
+
+	resp, err = ReadResponse(reader, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, StatusInternalServerError, resp.StatusLine.StatusCode)
+	assert.Equal(t, "second", string(resp.Body))
 }
 
 func newTestWriter() (*ResponseWriter, *memWriter) {

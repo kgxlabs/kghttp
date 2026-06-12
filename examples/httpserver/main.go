@@ -5,14 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 
+	"github.com/Kaung-HtetKyaw/kgx/examples/assets"
 	"github.com/Kaung-HtetKyaw/kgx/kghttp"
 )
 
@@ -27,16 +28,16 @@ func main() {
 	}
 	err := server.ListenAndServe()
 	if err != nil {
-		fmt.Printf("Error starting server: %v\n", err)
+		log.Printf("error starting server: %v", err)
 		return
 	}
 	defer server.Close()
-	fmt.Println("Server started on port", port)
+	log.Printf("server started on port %d", port)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
-	fmt.Println("Server gracefully stopped")
+	log.Print("server gracefully stopped")
 }
 
 func handler(w *kghttp.ResponseWriter, req *kghttp.Request) {
@@ -92,12 +93,12 @@ func httpBinProxyHandler(w *kghttp.ResponseWriter, req *kghttp.Request) {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			fmt.Printf("error reading response body: %v", err)
+			log.Printf("error reading response body: %v", err)
 			break
 		}
 
 		if _, err := w.WriteChunkedBody(buf[:n]); err != nil {
-			fmt.Println("error writing chunked body ", err)
+			log.Printf("error writing chunked body: %v", err)
 			break
 		}
 
@@ -109,20 +110,13 @@ func httpBinProxyHandler(w *kghttp.ResponseWriter, req *kghttp.Request) {
 	w.Trailers().Set("X-Content-Length", strconv.Itoa(totalN))
 
 	if _, err := w.WriteChunkedBodyDone(); err != nil {
-		fmt.Println("error writing chunked body done, ", err)
+		log.Printf("error writing chunked body done: %v", err)
 		return
 	}
 }
 
 func writeVideoResponse(w *kghttp.ResponseWriter) {
-	dir, err := os.Getwd()
-	if err != nil {
-		writeInternalServerError(w)
-		return
-	}
-
-	path := filepath.Join(dir, "assets", "vim.mp4")
-	f, err := os.Open(path)
+	f, err := assets.FS.Open("pepe.mp4")
 	if err != nil {
 		writeInternalServerError(w)
 		return
@@ -143,7 +137,7 @@ func writeVideoResponse(w *kghttp.ResponseWriter) {
 
 		if n > 0 {
 			if _, err := w.WriteChunkedBody(buf[:n]); err != nil {
-				fmt.Println("error writing chunked body ", err)
+				log.Printf("error writing chunked body: %v", err)
 				break
 
 			}
@@ -155,7 +149,7 @@ func writeVideoResponse(w *kghttp.ResponseWriter) {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			fmt.Printf("error reading response body: %v", err)
+			log.Printf("error reading response body: %v", err)
 			break
 		}
 
@@ -165,7 +159,7 @@ func writeVideoResponse(w *kghttp.ResponseWriter) {
 	w.Trailers().Set("X-Content-Length", strconv.Itoa(totalN))
 
 	if _, err := w.WriteChunkedBodyDone(); err != nil {
-		fmt.Println("error writing chunked body done, ", err)
+		log.Printf("error writing chunked body done: %v", err)
 		return
 	}
 }

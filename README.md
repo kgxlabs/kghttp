@@ -18,7 +18,7 @@ Package names may change as the stack grows. Each subdirectory is its own Go pac
 
 ## Examples
 
-Runnable examples live under [`examples/`](./examples/). Each example has its own README with setup and run instructions.
+Runnable examples live under [`examples/`](./examples/). The current example server is documented in [`kghttp/README.md`](./kghttp/README.md#example-server).
 
 ## Requirements
 
@@ -62,7 +62,7 @@ go test ./kgbuf/...
 │   └── README.md
 ├── kghttp/              # HTTP/1.1 server (available)
 │   └── README.md
-└── examples/            # Runnable demos (each with its own README)
+└── examples/            # Runnable demos
     └── httpserver/
 ```
 

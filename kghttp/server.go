@@ -1,17 +1,22 @@
 package kghttp
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strconv"
 	"sync/atomic"
+	"time"
+
+	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
 )
 
 type Server struct {
 	Addr            string
 	Handler         Handler
-	IdleConnTimeOut int
+	IdleConnTimeOut time.Duration
 	listener        net.Listener
 	stopped         atomic.Bool
 }
@@ -30,6 +35,7 @@ func (s *Server) ListenAndServe() error {
 }
 
 func (s *Server) Serve(ln net.Listener) error {
+	s.listener = ln
 	go s.listen()
 
 	return nil
@@ -66,18 +72,45 @@ func (s *Server) listen() {
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 
-	rw := NewWriter(conn)
+	r := kgbuf.NewReader(conn)
 
-	req, err := RequestFromReader(conn)
-	if err != nil {
-		body := []byte(fmt.Sprintf("failed to parse request: %v", err))
-		rw.Headers().Set("content-length", strconv.Itoa(len(body)))
-		rw.Headers().Set("content-type", "text/plain")
-		rw.Headers().Set("connection", "close")
-		rw.WriteHeaders(StatusInternalServerError)
-		rw.WriteBody(body)
-		return
+	for {
+		rw := NewWriter(conn)
+
+		if s.IdleConnTimeOut > 0 {
+			conn.SetReadDeadline(time.Now().Add(s.IdleConnTimeOut))
+		} else {
+			conn.SetReadDeadline(time.Time{})
+		}
+		req, err := ReadRequest(r)
+		conn.SetReadDeadline(time.Time{})
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				// Client closed connection
+				return
+			}
+
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+				return
+			}
+
+			body := []byte(fmt.Sprintf("failed to parse request: %v", err))
+			rw.Headers().Set("content-length", strconv.Itoa(len(body)))
+			rw.Headers().Set("content-type", "text/plain")
+			rw.Headers().Set("connection", "close")
+			rw.WriteHeaders(StatusInternalServerError)
+			rw.WriteBody(body)
+			return
+		}
+
+		s.Handler(rw, req)
+		c, _ := rw.Headers().Get("connection")
+		if c == "close" {
+			return
+		}
+		c, _ = req.Headers.Get("connection")
+		if c == "close" {
+			return
+		}
 	}
-
-	s.Handler(rw, req)
 }

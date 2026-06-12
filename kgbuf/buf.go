@@ -42,12 +42,21 @@ func NewReaderSize(reader io.Reader, size int) *Reader {
 }
 
 func (b *Reader) Read(p []byte) (int, error) {
-	if b.w-b.r < len(p) {
-		if b.w >= len(b.buf)*8/10 {
-			newBuf := make([]byte, 2*len(b.buf))
-			copy(newBuf, b.buf)
-			b.buf = newBuf
-		}
+	if b.w-b.r > 0 {
+		endR := min(b.w-b.r, len(p)) + b.r
+		nc := copy(p, b.buf[b.r:endR])
+		copy(b.buf, b.buf[endR:])
+		b.w -= endR
+		b.r = 0
+
+		return nc, nil
+	}
+
+	// grow if threshold is reached
+	if b.w >= len(b.buf)*8/10 {
+		newBuf := make([]byte, 2*len(b.buf))
+		copy(newBuf, b.buf)
+		b.buf = newBuf
 	}
 
 	n, err := b.reader.Read(b.buf[b.w:])
@@ -114,13 +123,20 @@ func (b *Reader) ReadFull(p []byte) (int, error) {
 }
 
 func (b *Reader) ReadBytes(delim []byte) ([]byte, error) {
-	delimIndex := -1
+	start := b.r
 	for {
 		// compact if more than half the bytes is consumed , if not grow
 		if b.r > b.w/2 {
 			copy(b.buf, b.buf[b.r:b.w])
 			b.w -= b.r
 			b.r = 0
+			start = b.r
+		}
+
+		i := bytes.Index(b.buf[b.r:b.w], delim)
+		if i != -1 {
+			b.r += i + len(delim)
+			return b.buf[start:b.r], nil
 		}
 
 		if b.w >= len(b.buf) {
@@ -139,29 +155,11 @@ func (b *Reader) ReadBytes(delim []byte) ([]byte, error) {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return []byte{}, ErrReaderFailedToRead
+			return []byte{}, err
 		}
-
-		i := bytes.Index(b.buf[b.r:b.w], delim)
-
-		if i == -1 {
-			delimIndex = i
-			continue
-		}
-
-		b.r += i + len([]byte(delim))
-		delimIndex = i
-		break
 	}
 
-	if delimIndex == -1 {
-		return []byte{}, nil
-	}
-
-	line := b.buf[:b.r]
-
-	return line, nil
-
+	return []byte{}, nil
 }
 
 func (b *Reader) ReadString(delim string) (string, error) {

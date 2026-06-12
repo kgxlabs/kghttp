@@ -6,8 +6,9 @@ An **HTTP/1.1** server library for Go, **built from scratch** on **raw TCP socke
 
 - **HTTP/1.1 request parsing** — request line, headers, and `Content-Length` bodies via a streaming parser
 - **Response writer** — status line, headers, fixed-length bodies, **chunked** transfer encoding, and optional **trailers**
-- **`Server` API** — configure `Addr` and `Handler`, then call `ListenAndServe()` or `Serve(net.Listener)`
+- **`Server` API** — configure `Addr`, `Handler`, and optional `IdleConnTimeOut`, then call `ListenAndServe()` or `Serve(net.Listener)`
 - **Concurrent connections** — one goroutine per accepted connection
+- **Persistent connections** — a connection can serve multiple requests until either side sends `Connection: close`, the client disconnects, or the idle timeout expires
 - **Listener shutdown** — `Close()` stops accepting new connections (does not wait for in-flight handlers to finish)
 - **Reverse proxy (demo)** — [`examples/httpserver/main.go`](../examples/httpserver/main.go) forwards `/httpbin/*` to [httpbin.org](https://httpbin.org/) with chunked bodies and SHA-256 trailers
 - **Zero runtime dependencies** — library code uses only the Go standard library (tests use `testify`)
@@ -35,6 +36,7 @@ This project exists to understand HTTP on top of TCP—not to replace `net/http`
 
 - **Request parsing** — incremental reads, request line, headers, bodies
 - **Response serialization** — status line, header blocks, body writes
+- **Persistent server connections** — repeated request parsing on the same accepted socket
 - **Chunked transfer encoding** — `WriteChunkedBody` / `WriteChunkedBodyDone`
 - **Trailers** — trailer headers after the final chunked chunk
 - **Reverse proxying** — demonstrated in the example server (stream upstream, re-encode as chunked + trailers)
@@ -109,13 +111,14 @@ curl -v http://localhost:8080/
 
 | Type / function | Role |
 |-----------------|------|
-| `Server` | Holds `Addr`, `Handler`, and the TCP listener |
+| `Server` | Holds `Addr`, `Handler`, optional `IdleConnTimeOut`, and the TCP listener |
 | `Server.ListenAndServe()` | Listen on `Addr` and start accepting connections |
 | `Server.Serve(net.Listener)` | Serve on an existing listener |
 | `Server.Close()` | Stop accepting new connections |
 | `Handler` | `func(w *ResponseWriter, req *Request)` |
 | `Request` | Parsed request line, headers, and body |
-| `RequestFromReader(io.Reader)` | Parse a request from any reader (used internally by the server) |
+| `ReadRequest(*kgbuf.Reader)` | Parse a request from a buffered reader (used internally by the server) |
+| `ReadResponse(*kgbuf.Reader, *Request)` | Parse a fixed-length HTTP/1.1 response from a buffered reader |
 | `ResponseWriter` | Build and send the HTTP response |
 | `ResponseWriter.WriteHeaders(StatusCode)` | Send status line + headers |
 | `ResponseWriter.WriteBody([]byte)` | Send a body after headers (fixed length) |
@@ -155,9 +158,9 @@ go test ./kghttp/...
 | Area | Covered? | Notes |
 |------|----------|-------|
 | Request line parsing | Yes | `request_test.go` — methods, targets, HTTP version, invalid lines |
-| Header parsing (request) | Yes | Via `RequestFromReader` and `headers_test.go` field-line parser |
+| Header parsing (request) | Yes | Via `ReadRequest` and `headers_test.go` field-line parser |
 | `Content-Length` bodies | Yes | `TestBodyParse` — full body, empty body, short body, no length |
-| Server (`ListenAndServe`) | Yes | `server_test.go` — end-to-end TCP request/response |
+| Server (`Serve`) | Yes | `server_test.go` — end-to-end TCP request/response over a kept-alive connection |
 | Response writer | Yes | `response_test.go` — fixed-length body serialization |
 | Chunked encoding | Yes | `TestWriteResponseChunkedWithTrailers` — chunk framing |
 | Trailers | Yes | `TestWriteResponseChunkedWithTrailers` — trailer block after final chunk |
@@ -182,11 +185,13 @@ kghttp/
 
 Each accepted TCP connection is handled like this:
 
-1. The server reads **one** HTTP request from the connection.
-2. Your handler runs and writes the response (you usually set `Connection: close`).
-3. The connection is **closed** when the handler returns (`defer conn.Close()` in `server.go`).
+1. The server creates a buffered reader for the accepted connection.
+2. It sets a read deadline when `IdleConnTimeOut` is greater than zero.
+3. It reads one HTTP request, runs your handler, and writes the response.
+4. It repeats for the next request on the same connection unless either the request or response has `Connection: close`.
+5. The connection is closed when the loop exits because of `Connection: close`, client disconnect, read timeout, or a request parse error.
 
-There is **no keep-alive** support yet: the server does not read a second request on the same socket, even if the client sends `Connection: keep-alive`. Treat every connection as single-request, single-response today.
+Handlers own the response framing. For fixed-length responses, set `Content-Length` before `WriteHeaders`; for streamed responses, set `Transfer-Encoding: chunked`, write chunks, then call `WriteChunkedBodyDone`.
 
 ## Current limitations
 
@@ -194,8 +199,7 @@ There is **no keep-alive** support yet: the server does not read a second reques
 - **No TLS/HTTPS** — plain TCP only
 - **No HTTP/2**
 - **No HTTP client** — upstream calls in the demo use Go's `net/http` client
-- **No request pipelining** — one request per connection, no queued responses on a live socket
-- **No keep-alive** — connection closes after the handler returns
+- **Limited response parser** — `ReadResponse` supports `Content-Length` bodies; chunked, close-delimited, and status-specific no-body rules are not implemented yet
 - **Limited status codes** — writer reason phrases for 200, 400, and 500 only
 - **Handler-owned responses** — the library does not set `Content-Length` or pick a status for you; call `WriteHeaders` then write the body (or chunks) in order
 - **No in-flight drain on shutdown** — `Close()` closes the listener; active handlers are not joined

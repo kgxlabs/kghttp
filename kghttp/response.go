@@ -2,8 +2,13 @@ package kghttp
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"strconv"
+	"strings"
+
+	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
 )
 
 type StatusCode int
@@ -21,6 +26,29 @@ type ResponseWriter struct {
 	writerState writerState
 }
 
+type Response struct {
+	StatusLine     StatusLine
+	Headers        Headers
+	Body           []byte
+	bodyLengthRead int
+	state          ResponseState
+}
+
+type StatusLine struct {
+	HttpVersion  string
+	StatusCode   StatusCode
+	ReasonPhrase string
+}
+
+type ResponseState string
+
+const (
+	ResponseStateInitialized    ResponseState = "initialized"
+	ResponseStateDone           ResponseState = "done"
+	ResponseStateParsingHeaders ResponseState = "parsingHeaders"
+	ResponseStateParsingBody    ResponseState = "parsingBody"
+)
+
 type writerState string
 
 const (
@@ -34,6 +62,188 @@ func NewWriter(writer io.Writer) *ResponseWriter {
 		writer:      writer,
 		writerState: writerStateWritingHeaders,
 	}
+}
+
+func ReadResponse(reader *kgbuf.Reader, req *Request) (*Response, error) {
+	response := &Response{
+		Headers: NewHeaders(),
+		state:   ResponseStateInitialized,
+	}
+	_ = req
+
+	line, err := reader.ReadBytes([]byte(CRLF))
+	if err != nil {
+		return nil, err
+	}
+	if len(line) == 0 {
+		return nil, fmt.Errorf("incomplete http response at state: %s", response.state)
+	}
+
+	statusLine, _, err := parseStatusLine(line)
+	if err != nil {
+		return nil, err
+	}
+	response.StatusLine = *statusLine
+	response.state = ResponseStateParsingHeaders
+
+	for response.state == ResponseStateParsingHeaders {
+		line, err = reader.ReadBytes([]byte(CRLF))
+		if err != nil {
+			return nil, err
+		}
+		if len(line) == 0 {
+			return nil, fmt.Errorf("incomplete http response at state: %s", response.state)
+		}
+
+		_, done, err := response.Headers.Parse(line)
+		if err != nil {
+			return nil, err
+		}
+		if done {
+			response.state = ResponseStateParsingBody
+		}
+	}
+
+	contentLengthStr, ok := response.Headers.Get("content-length")
+	if !ok {
+		// TODO: Handle response-specific body rules, chunked responses, and close-delimited bodies.
+		response.state = ResponseStateDone
+		return response, nil
+	}
+
+	contentLen, err := strconv.Atoi(contentLengthStr)
+	if err != nil {
+		return nil, fmt.Errorf("malformed content length: %s", err)
+	}
+
+	// TODO: Handle response-specific no-body cases such as 1xx, 204, 304, and HEAD responses.
+	response.Body = make([]byte, contentLen)
+	n, err := reader.ReadFull(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	response.bodyLengthRead = n
+	response.state = ResponseStateDone
+
+	return response, nil
+}
+
+func (r *Response) parse(data []byte) (int, error) {
+	totalBytesParsed := 0
+
+	for r.state != ResponseStateDone {
+		n, err := r.parseSingle(data[totalBytesParsed:])
+		if err != nil {
+			return 0, err
+		}
+
+		totalBytesParsed += n
+
+		if n == 0 {
+			break
+		}
+	}
+
+	return totalBytesParsed, nil
+}
+
+func (r *Response) parseSingle(data []byte) (int, error) {
+	switch r.state {
+	case ResponseStateInitialized:
+		statusLine, n, err := parseStatusLine(data)
+		if err != nil {
+			return 0, err
+		}
+
+		if n == 0 {
+			return 0, nil
+		}
+
+		r.state = ResponseStateParsingHeaders
+		r.StatusLine = *statusLine
+		return n, nil
+	case ResponseStateParsingHeaders:
+		n, done, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
+		}
+
+		if done {
+			r.state = ResponseStateParsingBody
+		}
+		return n, nil
+	case ResponseStateParsingBody:
+		contentLengthStr, ok := r.Headers.Get("content-length")
+		if !ok {
+			// TODO: Handle response-specific body rules, chunked responses, and close-delimited bodies.
+			r.state = ResponseStateDone
+			return 0, nil
+		}
+
+		contentLen, err := strconv.Atoi(contentLengthStr)
+		if err != nil {
+			return 0, fmt.Errorf("malformed content length: %s", err)
+		}
+
+		// TODO: Handle response-specific no-body cases such as 1xx, 204, 304, and HEAD responses.
+		remaining := contentLen - r.bodyLengthRead
+		consume := min(len(data), remaining)
+
+		r.Body = append(r.Body, data[:consume]...)
+		r.bodyLengthRead += consume
+
+		if r.bodyLengthRead == contentLen {
+			r.state = ResponseStateDone
+		}
+		return consume, nil
+	case ResponseStateDone:
+		return 0, fmt.Errorf("trying to read in done state: %s", r.state)
+	default:
+		return 0, fmt.Errorf("invalid response state: %s", r.state)
+	}
+}
+
+func parseStatusLine(data []byte) (*StatusLine, int, error) {
+	i := bytes.Index(data, []byte(CRLF))
+	if i == -1 {
+		return nil, 0, nil
+	}
+
+	line := string(data[:i])
+
+	statusLine, err := statusLineFromString(line)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return statusLine, i + 2, nil
+}
+
+func statusLineFromString(str string) (*StatusLine, error) {
+	parts := strings.Fields(str)
+	if len(parts) < 2 {
+		return nil, errors.New("Invalid response")
+	}
+
+	version, err := getHTTPVersion(parts[0])
+	if err != nil {
+		return nil, err
+	}
+
+	code, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("invalid status code: %s", err)
+	}
+
+	if code < 100 || code > 999 {
+		return nil, fmt.Errorf("invalid status code: %d", code)
+	}
+
+	return &StatusLine{
+		HttpVersion:  version,
+		StatusCode:   GetStatusCode(code),
+		ReasonPhrase: strings.Join(parts[2:], " "),
+	}, nil
 }
 
 func (w *ResponseWriter) Headers() Headers {

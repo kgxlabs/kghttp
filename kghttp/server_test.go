@@ -1,49 +1,52 @@
 package kghttp
 
 import (
-	"fmt"
-	"io"
 	"net"
 	"strconv"
 	"testing"
+	"time"
 
+	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestListenAndServe(t *testing.T) {
-	port := 9999
-	addr := fmt.Sprintf(":%d", port)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
 	server := &Server{
-		Addr: addr,
 		Handler: func(w *ResponseWriter, req *Request) {
 			body := "Hello World"
 			data := []byte(body)
-			w.Headers().Set("connection", "close")
-			w.Headers().Set("content-type", strconv.Itoa(len(data)))
+			w.Headers().Set("content-length", strconv.Itoa(len(data)))
+			w.Headers().Set("content-type", "text/plain")
 			w.WriteHeaders(200)
 			w.WriteBody(data)
 
 		},
+		IdleConnTimeOut: 5 * time.Second,
 	}
-	err := server.ListenAndServe()
+	err = server.Serve(ln)
 	require.NoError(t, err)
 	defer server.Close()
 
-	conn, err := net.Dial("tcp", addr)
+	conn, err := net.Dial("tcp", ln.Addr().String())
 	require.NoError(t, err)
 	defer conn.Close()
+	reader := kgbuf.NewReader(conn)
 
 	_, err = conn.Write([]byte(
-		"GET / HTTP/1.1\r\n" +
+		"GET /ok HTTP/1.1\r\n" +
 			"Host: localhost\r\n" +
+			"Connection: keep-alive\r\n" +
+			"Content-Length: 0\r\n" +
 			"\r\n",
 	))
 	require.NoError(t, err)
 
-	resp, err := io.ReadAll(conn)
+	resp, err := ReadResponse(reader, nil)
 	require.NoError(t, err)
-
-	assert.Contains(t, string(resp), "HTTP/1.1 200 OK")
-	assert.Contains(t, string(resp), "Hello World")
+	assert.Equal(t, StatusOK, resp.StatusLine.StatusCode)
+	assert.Equal(t, "Hello World", string(resp.Body))
 }

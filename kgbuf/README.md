@@ -11,6 +11,7 @@ It is similar in spirit to parts of Go's `bufio`, but smaller and tailored to th
 | API | Status | Description |
 |-----|--------|-------------|
 | `Read([]byte)` | Implemented | Reads bytes into a caller-provided buffer |
+| `ReadFull([]byte)` | Implemented | Reads until the caller-provided buffer is filled or EOF is reached |
 | `ReadBytes(delim []byte)` | Implemented | Reads through the next delimiter and returns the consumed bytes |
 | `ReadString(delim string)` | Implemented | Reads through the next delimiter and returns the consumed string |
 | `Peek(n int)` | Implemented | Reads the next `n` bytes into the internal buffer without consuming them |
@@ -91,6 +92,31 @@ func main() {
 }
 ```
 
+Read until a caller-provided buffer is full:
+
+```go
+package main
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+)
+
+func main() {
+	r := kgbuf.NewReader(strings.NewReader("hello world"))
+	p := make([]byte, 5)
+
+	n, err := r.ReadFull(p)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("%d %q\n", n, p)
+}
+```
+
 Peek ahead without consuming bytes:
 
 ```go
@@ -123,6 +149,7 @@ func main() {
 | `NewReader(io.Reader)` | Creates a new buffered reader |
 | `NewReaderSize(io.Reader, int)` | Creates a new buffered reader with a custom internal buffer size |
 | `Reader.Read([]byte)` | Reads up to the caller-provided buffer size |
+| `Reader.ReadFull([]byte)` | Reads until the caller-provided buffer is filled, returning `io.ErrUnexpectedEOF` with partial data if EOF arrives first |
 | `Reader.ReadBytes(delim []byte)` | Reads until `delim` is found and includes `delim` in the returned bytes |
 | `Reader.ReadString(delim string)` | Reads until `delim` is found and includes `delim` in the returned string |
 | `Reader.Peek(n int)` | Buffers and returns the next `n` bytes without advancing the read cursor |
@@ -136,7 +163,9 @@ func main() {
 - Consumed bytes are compacted when enough of the buffer has been read.
 - `Read` fills the provided byte slice from buffered data and the underlying reader.
 - `Read` returns the number of bytes copied into the provided slice.
-- `Read` returns `0, nil` when no more bytes are available.
+- `Read` may return `io.EOF` when no more bytes are available.
+- `ReadFull` fills the provided byte slice before returning successfully.
+- `ReadFull` returns partial data and `io.ErrUnexpectedEOF` if EOF arrives before the slice is full.
 - `ReadBytes` and `ReadString` return the delimiter as part of the returned value.
 - If the delimiter is not found before EOF, `ReadBytes` returns an empty slice and no error.
 - If the delimiter is not found before EOF, `ReadString` currently returns an empty string and no error.

@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
 )
 
 type Request struct {
@@ -38,127 +39,65 @@ const (
 	bufferSize = 8
 )
 
-func RequestFromReader(reader io.Reader) (*Request, error) {
+func ReadRequest(reader *kgbuf.Reader) (*Request, error) {
 	request := &Request{
 		Headers: NewHeaders(),
 		state:   RequestStateInitialized,
 	}
-	buf := make([]byte, bufferSize)
-	readToIndex := 0
 
-	for request.state != RequestStateDone {
-		// increase the buffer if cursor is beyond the current buffer size
-		if readToIndex >= len(buf) {
-			newBuf := make([]byte, len(buf)*2)
-			copy(newBuf, buf)
-			buf = newBuf
-		}
-
-		numBytesRead, err := reader.Read(buf[readToIndex:])
-		if err != nil {
-			// Is it because we reach to an end
-			if errors.Is(err, io.EOF) {
-				if request.state != RequestStateDone {
-					return nil, fmt.Errorf("incomplete http request at state: %s, bytes read: %d", request.state, numBytesRead)
-				}
-
-				// we reached EOF and also is in done state, so get out of execution
-				break
-			}
-			return nil, err
-		}
-
-		readToIndex += numBytesRead
-
-		numBytesParsed, err := request.parse(buf[:readToIndex])
-		if err != nil {
-			return nil, err
-		}
-
-		// Exclude already parsed bytes
-		copy(buf, buf[numBytesParsed:])
-		readToIndex -= numBytesParsed
+	line, err := reader.ReadBytes([]byte(CRLF))
+	if err != nil {
+		return nil, err
 	}
+	if len(line) == 0 {
+		return nil, fmt.Errorf("incomplete http request at state: %s", request.state)
+	}
+
+	requestLine, _, err := parseRequestLine(line)
+	if err != nil {
+		return nil, err
+	}
+	request.RequestLine = *requestLine
+	request.state = RequestStateParsingHeaders
+
+	for request.state == RequestStateParsingHeaders {
+		line, err = reader.ReadBytes([]byte(CRLF))
+		if err != nil {
+			return nil, err
+		}
+		if len(line) == 0 {
+			return nil, fmt.Errorf("incomplete http request at state: %s", request.state)
+		}
+
+		_, done, err := request.Headers.Parse(line)
+		if err != nil {
+			return nil, err
+		}
+		if done {
+			request.state = RequestStateParsingBody
+		}
+	}
+
+	contentLengthStr, ok := request.Headers.Get("content-length")
+	if !ok {
+		request.state = RequestStateDone
+		return request, nil
+	}
+
+	contentLen, err := strconv.Atoi(contentLengthStr)
+	if err != nil {
+		return nil, fmt.Errorf("malformed content length: %s", err)
+	}
+
+	request.Body = make([]byte, contentLen)
+	n, err := reader.ReadFull(request.Body)
+	if err != nil {
+		return nil, err
+	}
+	request.bodyLengthRead = n
+	request.state = RequestStateDone
 
 	return request, nil
-}
-
-func (r *Request) parse(data []byte) (int, error) {
-	totalBytesParsed := 0
-
-	for r.state != RequestStateDone {
-		n, err := r.parseSingle(data[totalBytesParsed:])
-		if err != nil {
-			return 0, err
-		}
-
-		totalBytesParsed += n
-
-		if n == 0 {
-			break
-		}
-
-	}
-
-	return totalBytesParsed, nil
-}
-
-func (r *Request) parseSingle(data []byte) (int, error) {
-	switch r.state {
-	case RequestStateInitialized:
-		requestLine, n, err := parseRequestLine(data)
-		if err != nil {
-			return 0, err
-		}
-
-		if n == 0 {
-			return 0, nil
-		}
-
-		r.state = RequestStateParsingHeaders
-		r.RequestLine = *requestLine
-
-		return n, nil
-	case RequestStateParsingHeaders:
-		n, done, err := r.Headers.Parse(data)
-		if err != nil {
-			return 0, err
-		}
-
-		if done {
-			r.state = RequestStateParsingBody
-		}
-
-		return n, nil
-	case RequestStateParsingBody:
-		contentLengthStr, ok := r.Headers.Get("content-length")
-		if !ok {
-			r.state = RequestStateDone
-			return len(data), nil
-		}
-
-		contentLen, err := strconv.Atoi(contentLengthStr)
-		if err != nil {
-			return 0, fmt.Errorf("malformed content length: %s", err)
-		}
-
-		// This is different from the assignment solution (They append the bytes (both invalid and valid) and then return with err)
-		// This is better solution.This is how parsers for keep alive connection usually works
-		remaining := contentLen - r.bodyLengthRead
-		consume := min(len(data), remaining)
-
-		r.Body = append(r.Body, data[:consume]...)
-		r.bodyLengthRead += consume
-
-		if r.bodyLengthRead == contentLen {
-			r.state = RequestStateDone
-		}
-		return len(data), nil
-	case RequestStateDone:
-		return 0, fmt.Errorf("trying to read in done state: %s", r.state)
-	default:
-		return 0, fmt.Errorf("invalid request state: %s", r.state)
-	}
 }
 
 func parseRequestLine(data []byte) (*RequestLine, int, error) {
