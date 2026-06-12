@@ -42,8 +42,35 @@ func NewReaderSize(reader io.Reader, size int) *Reader {
 }
 
 func (b *Reader) Read(p []byte) (int, error) {
-	// number of unconsumed bytes are still below capacity of buffer
-	for b.w-b.r < cap(p) {
+	if b.w-b.r < len(p) {
+		if b.w >= len(b.buf)*8/10 {
+			newBuf := make([]byte, 2*len(b.buf))
+			copy(newBuf, b.buf)
+			b.buf = newBuf
+		}
+	}
+
+	n, err := b.reader.Read(b.buf[b.w:])
+	if n > 0 {
+		b.w += n
+	}
+
+	if err != nil && !errors.Is(err, io.EOF) {
+		return 0, err
+	}
+
+	endR := min(b.w-b.r, len(p)) + b.r
+	nc := copy(p, b.buf[b.r:endR])
+	copy(b.buf, b.buf[endR:])
+	b.w -= endR
+	b.r = 0
+
+	return nc, err
+}
+
+func (b *Reader) ReadFull(p []byte) (int, error) {
+	// number of unconsumed bytes are still below writable bytes of input
+	for b.w-b.r < len(p) {
 		// grow if capacity is reached
 		if b.w >= cap(b.buf) {
 			newBuf := make([]byte, cap(b.buf)*2)
@@ -58,8 +85,14 @@ func (b *Reader) Read(p []byte) (int, error) {
 		}
 
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
+			if errors.Is(err, io.EOF) && b.w-b.r < len(p) {
+				endR := min(b.w-b.r, len(p)) + b.r
+				n := copy(p, b.buf[b.r:endR])
+				copy(b.buf, b.buf[endR:])
+				b.w -= endR
+				b.r = 0
+
+				return n, io.ErrUnexpectedEOF
 			}
 
 			return 0, err
@@ -69,10 +102,12 @@ func (b *Reader) Read(p []byte) (int, error) {
 	// b.w-b.r => consumed bytes, if that is bigger than cap, only fill what cap can hold. If not fill everything
 	// And then +b.r to move read cursor
 	// Then, compact it
-	nextR := min(b.w-b.r, cap(p)) + b.r
-	n := copy(p, b.buf[b.r:nextR])
-	copy(b.buf, b.buf[nextR:])
-	b.w -= nextR
+	endR := min(b.w-b.r, len(p)) + b.r
+	n := copy(p, b.buf[b.r:endR])
+
+	// TODO: Decide whether or not we should compact
+	copy(b.buf, b.buf[endR:])
+	b.w -= endR
 	b.r = 0
 
 	return n, nil
@@ -88,8 +123,8 @@ func (b *Reader) ReadBytes(delim []byte) ([]byte, error) {
 			b.r = 0
 		}
 
-		if b.w >= cap(b.buf) {
-			newBuf := make([]byte, cap(b.buf)*2)
+		if b.w >= len(b.buf) {
+			newBuf := make([]byte, len(b.buf)*2)
 			copy(newBuf, b.buf)
 			b.buf = newBuf
 		}

@@ -44,38 +44,44 @@ func TestReaderReadBytes(t *testing.T) {
 }
 
 func TestReaderRead(t *testing.T) {
+	// Valid: Read gives exactly how many underlying reader can give
+	reader := newTestReader("hello world", 8)
+	p := make([]byte, 11)
+	n, err := reader.Read(p)
+	require.NoError(t, err)
+	assert.Equal(t, 8, n)
+	assert.Equal(t, "hello wo\x00\x00\x00", string(p))
+	n, err = reader.Read(p[8:])
+	require.NoError(t, err)
+	assert.Equal(t, 3, n)
+	assert.Equal(t, "hello world", string(p))
+	n, err = reader.Read(p)
+	require.Error(t, err)
+	assert.Equal(t, 0, n)
+	assert.Equal(t, "hello world", string(p))
+}
+
+func TestReaderReadFull(t *testing.T) {
 	// Valid: String matches
 	reader := newTestReader("hello world", 8)
 	p := make([]byte, 5)
-	n, err := reader.Read(p)
+	n, err := reader.ReadFull(p)
 	require.NoError(t, err)
 	assert.Equal(t, 5, n)
 	assert.Equal(t, "hello", string(p))
 
-	// Valid: Read until buffer is empty
+	// Valid: Read until byte slice is full
 	reader = newTestReader("hello world", 8)
-	p = make([]byte, 5)
-	n, err = reader.Read(p)
+	p = make([]byte, 11)
+	n, err = reader.ReadFull(p)
 	require.NoError(t, err)
-	assert.Equal(t, 5, n)
-	assert.Equal(t, "hello", string(p))
-	n, err = reader.Read(p)
-	require.NoError(t, err)
-	assert.Equal(t, 5, n)
-	assert.Equal(t, " worl", string(p))
-	n, err = reader.Read(p)
-	require.NoError(t, err)
-	assert.Equal(t, 1, n)
-	assert.Equal(t, "dworl", string(p))
-	n, err = reader.Read(p)
-	require.NoError(t, err)
-	assert.Equal(t, 0, n)
-	assert.Equal(t, "dworl", string(p))
+	assert.Equal(t, 11, n)
+	assert.Equal(t, "hello world", string(p))
 
 	// Valid: Read empty buffer
 	reader = newTestReader("", 8)
 	p = make([]byte, 0)
-	n, err = reader.Read(p)
+	n, err = reader.ReadFull(p)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
 	assert.Equal(t, "", string(p))
@@ -84,10 +90,18 @@ func TestReaderRead(t *testing.T) {
 	s := makeHugeString(32768, "")
 	reader = newTestReader(s, 4096)
 	p = make([]byte, 32768)
-	n, err = reader.Read(p)
+	n, err = reader.ReadFull(p)
 	require.NoError(t, err)
 	assert.Equal(t, 32768, n)
 	assert.Equal(t, s, string(p))
+
+	// Invalid: Reach end before input is filled
+	reader = newTestReader("hello world", 8)
+	p = make([]byte, 12)
+	n, err = reader.ReadFull(p)
+	require.Error(t, err)
+	assert.Equal(t, 11, n)
+	assert.Equal(t, "hello world\x00", string(p))
 }
 
 // ReadString is literally a wrapper around ReadBytes with no logic of it's own
@@ -96,7 +110,7 @@ func TestReaderReadString(t *testing.T) {
 	// Valid: String matches
 	reader := newTestReader("hello world", 8)
 	p := make([]byte, 5)
-	n, err := reader.Read(p)
+	n, err := reader.ReadFull(p)
 	require.NoError(t, err)
 	assert.Equal(t, 5, n)
 	assert.Equal(t, "hello", string(p))

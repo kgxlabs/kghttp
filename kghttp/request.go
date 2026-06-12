@@ -43,7 +43,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		Headers: NewHeaders(),
 		state:   RequestStateInitialized,
 	}
-	buf := make([]byte, bufferSize, bufferSize)
+	buf := make([]byte, bufferSize)
 	readToIndex := 0
 
 	for request.state != RequestStateDone {
