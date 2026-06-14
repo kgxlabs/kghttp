@@ -125,7 +125,6 @@ func (b *Reader) ReadFull(p []byte) (int, error) {
 func (b *Reader) ReadBytes(delim []byte) ([]byte, error) {
 	start := b.r
 	for {
-		// compact if more than half the bytes is consumed , if not grow
 		if b.r > b.w/2 {
 			copy(b.buf, b.buf[b.r:b.w])
 			b.w -= b.r
