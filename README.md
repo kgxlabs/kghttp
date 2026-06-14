@@ -1,6 +1,6 @@
 # kgx
 
-A personal Go monorepo for building a **minimal stack from scratch**—small, readable packages you can understand end to end, without leaning on large frameworks.
+A Go monorepo for building a **minimal stack from scratch**—small, readable packages you can understand end to end, without leaning on large frameworks.
 
 The goal is not to replace the standard library or popular tools like `net/http` and Chi. It is to learn how the pieces fit together by implementing them yourself, then composing them into something usable.
 
