@@ -35,8 +35,7 @@ type RequestLine struct {
 }
 
 const (
-	CRLF       = "\r\n"
-	bufferSize = 8
+	CRLF = "\r\n"
 )
 
 func ReadRequest(reader *kgbuf.Reader) (*Request, error) {
