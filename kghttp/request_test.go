@@ -1,6 +1,7 @@
 package kghttp
 
 import (
+	"fmt"
 	"testing"
 
 	"strings"
@@ -214,4 +215,22 @@ func TestReadRequestReadsMultipleRequests(t *testing.T) {
 	assert.Equal(t, "GET", r.RequestLine.Method)
 	assert.Equal(t, "/two", r.RequestLine.RequestTarget)
 	assert.Equal(t, "", string(r.Body))
+}
+
+func TestReadRequestLimitRequestLine(t *testing.T) {
+	// Invalid: Garbage bytes before request line
+	reader := kgbuf.NewReader(strings.NewReader(
+		makeHugeString(RequestLineLimit, "") +
+			"POST /one HTTP/1.1\r\n" +
+			"Host: localhost:42069\r\n" +
+			"Content-Length: 5\r\n" +
+			"\r\n" +
+			"first",
+	))
+	_, err := ReadRequest(reader)
+	require.Error(t, err)
+}
+
+func makeHugeString(repeat int, delim string) string {
+	return strings.Repeat(fmt.Sprintf("a%s", delim), repeat)
 }

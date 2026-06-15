@@ -21,8 +21,9 @@ type Reader struct {
 const bufferSize = 4096
 
 var (
-	ErrReaderFailedToRead = errors.New("kgbuf: reader failed to read")
-	ErrPartialRead        = errors.New("kgbuf: partial read")
+	ErrReaderFailedToRead   = errors.New("kgbuf: reader failed to read")
+	ErrPartialRead          = errors.New("kgbuf: partial read")
+	ErrByteReadLimitReached = errors.New("kgbuf: byte read limit reached")
 )
 
 func NewReader(reader io.Reader) *Reader {
@@ -159,6 +160,54 @@ func (b *Reader) ReadBytes(delim []byte) ([]byte, error) {
 	}
 
 	return []byte{}, nil
+}
+
+func (b *Reader) ReadBytesLimit(delim []byte, limit int) ([]byte, error) {
+	budget := limit
+
+	start := b.r
+	for {
+
+		if budget == 0 {
+			return []byte{}, ErrByteReadLimitReached
+		}
+
+		if b.r > b.w/2 {
+			copy(b.buf, b.buf[b.r:b.w])
+			b.w -= b.r
+			b.r = 0
+			start = b.r
+		}
+
+		i := bytes.Index(b.buf[b.r:b.w], delim)
+		if i != -1 {
+			b.r += i + len(delim)
+			return b.buf[start:b.r], nil
+		}
+
+		if b.w >= len(b.buf) {
+			newBuf := make([]byte, len(b.buf)*2)
+			copy(newBuf, b.buf)
+			b.buf = newBuf
+		}
+
+		// read from underlying reader and write to internal if data we have is not enough
+		n, err := b.reader.Read(b.buf[b.w:])
+		if n > 0 {
+			b.w += n
+			budget -= min(n, budget)
+		}
+
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return []byte{}, err
+		}
+	}
+
+	return []byte{}, nil
+
 }
 
 func (b *Reader) ReadString(delim string) (string, error) {

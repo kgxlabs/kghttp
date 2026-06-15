@@ -173,6 +173,20 @@ func TestReaderPeek(t *testing.T) {
 	assert.Equal(t, 0, len(b))
 }
 
+func TestReaderReadBytesLimit(t *testing.T) {
+	// Valid: Only read specified limit
+	reader := newTestReader("partial read! Ignore the rest", 8)
+	b, err := reader.ReadBytesLimit([]byte("!"), 20)
+	require.NoError(t, err)
+	assert.Equal(t, "partial read!", string(b))
+	assert.LessOrEqual(t, len(b), 20)
+
+	// Invalid: Exceed limit
+	reader = newTestReader("there is no delimiter for this sentence", 8)
+	b, err = reader.ReadBytesLimit([]byte("\n"), 20)
+	require.Error(t, err)
+}
+
 func makeHugeString(repeat int, delim string) string {
 	return strings.Repeat(fmt.Sprintf("a%s", delim), repeat)
 }
