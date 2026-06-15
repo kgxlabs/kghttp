@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"strconv"
+	"io"
 	"strings"
 	"unicode"
 
@@ -14,7 +14,7 @@ import (
 type Request struct {
 	RequestLine    RequestLine
 	Headers        Headers
-	Body           []byte
+	Body           io.ReadCloser
 	bodyLengthRead int
 	state          RequestState
 }
@@ -78,23 +78,9 @@ func ReadRequest(reader *kgbuf.Reader) (*Request, error) {
 		}
 	}
 
-	contentLengthStr, ok := request.Headers.Get("content-length")
-	if !ok {
-		request.state = RequestStateDone
-		return request, nil
-	}
-
-	contentLen, err := strconv.Atoi(contentLengthStr)
-	if err != nil {
-		return nil, fmt.Errorf("malformed content length: %s", err)
-	}
-
-	request.Body = make([]byte, contentLen)
-	n, err := reader.ReadFull(request.Body)
-	if err != nil {
+	if err := readTransfer(request, reader); err != nil {
 		return nil, err
 	}
-	request.bodyLengthRead = n
 	request.state = RequestStateDone
 
 	return request, nil

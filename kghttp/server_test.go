@@ -1,14 +1,13 @@
 package kghttp
 
 import (
+	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"net"
 	"strconv"
 	"testing"
 	"time"
-
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestListenAndServe(t *testing.T) {
