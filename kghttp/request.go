@@ -35,8 +35,7 @@ type RequestLine struct {
 }
 
 const (
-	CRLF       = "\r\n"
-	bufferSize = 8
+	CRLF = "\r\n"
 )
 
 func ReadRequest(reader *kgbuf.Reader) (*Request, error) {
@@ -90,6 +89,7 @@ func ReadRequest(reader *kgbuf.Reader) (*Request, error) {
 	}
 
 	request.Body = make([]byte, contentLen)
+	// TODO: reaplce full body read into memory with ReadCloser
 	n, err := reader.ReadFull(request.Body)
 	if err != nil {
 		return nil, err
