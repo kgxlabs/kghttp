@@ -35,8 +35,8 @@ type RequestLine struct {
 }
 
 const (
-	CRLF       = "\r\n"
-	bufferSize = 8
+	CRLF             = "\r\n"
+	RequestLineLimit = 8192
 )
 
 func ReadRequest(reader *kgbuf.Reader) (*Request, error) {
@@ -45,7 +45,7 @@ func ReadRequest(reader *kgbuf.Reader) (*Request, error) {
 		state:   RequestStateInitialized,
 	}
 
-	line, err := reader.ReadBytes([]byte(CRLF))
+	line, err := reader.ReadBytesLimit([]byte(CRLF), RequestLineLimit)
 	if err != nil {
 		return nil, err
 	}
