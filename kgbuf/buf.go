@@ -215,6 +215,11 @@ func (b *Reader) ReadString(delim string) (string, error) {
 	return string(line), err
 }
 
+func (b *Reader) ReadStringLimit(delim string, limit int) (string, error) {
+	line, err := b.ReadBytesLimit([]byte(delim), limit)
+	return string(line), err
+}
+
 func (b *Reader) Peek(n int) ([]byte, error) {
 	prevW := b.w
 	if n == 0 {
