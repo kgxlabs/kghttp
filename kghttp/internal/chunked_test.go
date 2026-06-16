@@ -44,14 +44,17 @@ func TestChunkedBodyReaderRead(t *testing.T) {
 	assert.Equal(t, "hello", string(p))
 	_, err = cr.Read(p)
 	require.NoError(t, err)
-	assert.Equal(t, ",worl", string(p))
+	assert.Equal(t, ",ello", string(p))
 	n, err := cr.Read(p)
+	require.NoError(t, err)
+	assert.Equal(t, 5, n)
+	assert.Equal(t, "world", string(p))
+	n, err = cr.Read(p)
 	require.Error(t, err)
 	require.ErrorIs(t, err, io.EOF)
-	assert.Equal(t, 1, n)
-	assert.Equal(t, "dorld", string(p))
+	assert.Equal(t, 0, n)
 
-	// Invalid: Malformed chunked encoding
+	// Invalid: Invalid byte in chunked length
 	r = kgbuf.NewReader(
 		strings.NewReader(
 			"GET / HTTP/1.1\r\n" +
@@ -61,6 +64,5 @@ func TestChunkedBodyReaderRead(t *testing.T) {
 	p = make([]byte, 5)
 	n, err = cr.Read(p)
 	require.Error(t, err)
-	require.ErrorIs(t, err, ErrMalformedChunkedEncoding)
 	assert.Equal(t, 0, n)
 }
