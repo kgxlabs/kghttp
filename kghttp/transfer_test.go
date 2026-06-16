@@ -65,6 +65,31 @@ func TestBodyReaderRead(t *testing.T) {
 	assert.Equal(t, 0, n)
 
 	// Valid: Chunked body without trailers
+	cr = &testutil.ChunkedReader{
+		Data: "5\r\n" +
+			"hello\r\n" +
+			"6\r\n" +
+			" world\r\n" +
+			"0\r\n" + "\r\n" +
+			"GET / HTTP/1.1\r\n" +
+			"Content-Length: 0\r\n\r\n",
+		NumBytesPerRead: 8,
+	}
+
+	req = &Request{
+		RequestLine: RequestLine{
+			Method:        "POST",
+			RequestTarget: "/message",
+			HttpVersion:   "HTTP/1.1",
+		},
+		Headers: Headers{
+			"content-length": "11",
+		},
+	}
+	req.Body = &bodyReader{
+		src: io.LimitReader(cr, 11),
+		msg: req,
+	}
 
 	// Valid: Chunked body with trailers
 }
