@@ -30,8 +30,50 @@ func NewChunkedReader(r io.Reader) io.Reader {
 	}
 }
 
+func (cr *chunkedReader) readChunkLine() ([]byte, error) {
+	bs, err := cr.r.ReadBytes("\r\n")
+	return []byte{}, nil
+}
+
+func (cr *chunkedReader) parseHexUnit(line []byte) (n uint64, err error) {
+	if len(line) == 0 {
+		return 0, errors.New("empty hex number for chunk length")
+	}
+	for i, b := range line {
+		switch {
+		case '0' <= b && b <= '9':
+			b = b - '0'
+		case 'a' <= b && b <= 'f':
+			b = b - 'a' + 10
+		case 'A' <= b && b <= 'F':
+			b = b - 'A' + 10
+		default:
+			return 0, errors.New("invalid byte in chunk length")
+		}
+		if i == 16 {
+			return 0, errors.New("http chunk length too large")
+		}
+		n <<= 4
+		n |= uint64(b)
+	}
+	return
+}
+
 func (cr *chunkedReader) beginChunkProcess() {
-	// TODO: come back here after these issues https://github.com/Kaung-HtetKyaw/kgx/issues/21 , https://github.com/Kaung-HtetKyaw/kgx/issues/22
+	// read chunk line
+	var line []byte
+	line, cr.err = cr.readChunkLine()
+	cr.n, cr.err = cr.parseHexUnit(line)
+
+	if cr.err != nil {
+		return
+	}
+
+	// TODO: handle chunk extension and handle very long chunk extension
+	// limit the excess bytes
+	if cr.n == 0 {
+		cr.err = io.EOF
+	}
 }
 
 func (cr *chunkedReader) chunkHeaderAvailable() bool {
