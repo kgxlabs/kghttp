@@ -2,6 +2,7 @@ package kgbuf
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -26,14 +27,16 @@ func TestReaderReadBytes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "nice to meet you\n", string(line))
 	line, err = reader.ReadBytes([]byte("\n"))
-	require.NoError(t, err)
-	assert.Equal(t, "", string(line))
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.EOF)
+	assert.Equal(t, "welcome", string(line))
 
 	// Valid: No delim found
 	reader = newTestReader("hello world. nice to meet you.", 8)
 	line, err = reader.ReadBytes([]byte("\n"))
-	require.NoError(t, err)
-	assert.Equal(t, "", string(line))
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.EOF)
+	assert.Equal(t, "hello world. nice to meet you.", string(line))
 
 	// Valid: Grow buffer if needed
 	s := makeHugeString(1024, "")

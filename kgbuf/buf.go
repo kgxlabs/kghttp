@@ -157,7 +157,9 @@ func (b *Reader) ReadBytes(delim []byte) ([]byte, error) {
 
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				break
+				p := make([]byte, b.w)
+				copy(p, b.buf[start:b.w])
+				return p, err
 			}
 			return []byte{}, err
 		}
