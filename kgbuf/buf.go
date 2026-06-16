@@ -24,6 +24,7 @@ var (
 	ErrReaderFailedToRead   = errors.New("kgbuf: reader failed to read")
 	ErrPartialRead          = errors.New("kgbuf: partial read")
 	ErrByteReadLimitReached = errors.New("kgbuf: byte read limit reached")
+	ErrBufferFull           = errors.New("kgbuf: buffer full")
 )
 
 func NewReader(reader io.Reader) *Reader {
@@ -135,8 +136,11 @@ func (b *Reader) ReadBytes(delim []byte) ([]byte, error) {
 
 		i := bytes.Index(b.buf[b.r:b.w], delim)
 		if i != -1 {
-			b.r += i + len(delim)
-			return b.buf[start:b.r], nil
+			n := i + len(delim)
+			b.r += n
+			p := make([]byte, n)
+			copy(p, b.buf[start:b.r])
+			return p, nil
 		}
 
 		if b.w >= len(b.buf) {
@@ -160,6 +164,45 @@ func (b *Reader) ReadBytes(delim []byte) ([]byte, error) {
 	}
 
 	return []byte{}, nil
+}
+
+func (b *Reader) ReadSlice(delim byte) ([]byte, error) {
+	start := b.r
+	for {
+		if b.r > b.w/2 {
+			copy(b.buf, b.buf[b.r:b.w])
+			b.w -= b.r
+			b.r = 0
+			start = b.r
+		}
+
+		i := bytes.IndexByte(b.buf[b.r:b.w], delim)
+		if i != -1 {
+			n := i + 1
+			b.r += n
+			return b.buf[start:b.r], nil
+		}
+
+		if b.w == len(b.buf) {
+			return b.buf, ErrBufferFull
+		}
+
+		// read from underlying reader and write to internal if data we have is not enough
+		n, err := b.reader.Read(b.buf[b.w:])
+		if n > 0 {
+			b.w += min(len(b.buf), n)
+		}
+
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return []byte{}, err
+		}
+	}
+
+	return []byte{}, nil
+
 }
 
 func (b *Reader) ReadBytesLimit(delim []byte, limit int) ([]byte, error) {
