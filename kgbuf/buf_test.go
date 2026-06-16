@@ -41,6 +41,43 @@ func TestReaderReadBytes(t *testing.T) {
 	line, err = reader.ReadBytes([]byte("\n"))
 	require.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("%s\n", s), string(line))
+
+	// Valid: Overwrite buffer later
+	// TODO: Figure out how to add test case for overwritting already read byte slices
+}
+
+func TestReaderReadSlice(t *testing.T) {
+	// Valid: Read String matches
+	reader := newTestReader("hello world\nnice to meet you\n", 8)
+	line, err := reader.ReadSlice('\n')
+	require.NoError(t, err)
+	assert.Equal(t, "hello world\n", string(line))
+
+	// Valid: Read string consumes advances to new line
+	reader = newTestReader("hello world\nnice to meet you\nwelcome", 8)
+	line, err = reader.ReadSlice('\n')
+	require.NoError(t, err)
+	assert.Equal(t, "hello world\n", string(line))
+	line, err = reader.ReadSlice('\n')
+	require.NoError(t, err)
+	assert.Equal(t, "nice to meet you\n", string(line))
+	line, err = reader.ReadSlice('\n')
+	require.NoError(t, err)
+	assert.Equal(t, "", string(line))
+
+	// Invalid: No delim found but buffer still has space
+	reader = newTestReader("hello world. nice to meet you.", 8)
+	line, err = reader.ReadSlice('\n')
+	require.NoError(t, err)
+	assert.Equal(t, "", string(line))
+
+	// Invalid: No delim found and buffer fills
+	s := makeHugeString(bufferSize+16, "")
+	reader = newTestReader(fmt.Sprintf("%s\n", s), 1024)
+	line, err = reader.ReadSlice('\n')
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrBufferFull)
+	assert.Equal(t, bufferSize, len(line))
 }
 
 func TestReaderRead(t *testing.T) {
