@@ -96,6 +96,9 @@ func transferFields(r *kgbuf.Reader, msg any) error {
 
 		switch rr := msg.(type) {
 		case *Request:
+			if rr.Trailers == nil {
+				rr.Trailers = Headers{}
+			}
 			_, done, err := rr.Trailers.Parse(line)
 			if err != nil {
 				return err
@@ -104,6 +107,9 @@ func transferFields(r *kgbuf.Reader, msg any) error {
 				return nil
 			}
 		case *Response:
+			if rr.Trailers == nil {
+				rr.Trailers = Headers{}
+			}
 			_, done, err := rr.Trailers.Parse(line)
 			if err != nil {
 				return err
@@ -144,8 +150,8 @@ func (br *bodyReader) Read(p []byte) (int, error) {
 
 		// after 0\r\n is processed, parse trailers
 		if br.chunked {
-			if err = transferFields(br.r, br.msg); err != nil {
-				return n, err
+			if trailerErr := transferFields(br.r, br.msg); trailerErr != nil {
+				return n, trailerErr
 			}
 		}
 	}

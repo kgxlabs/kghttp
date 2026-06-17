@@ -5,19 +5,19 @@ import (
 	"testing"
 
 	"github.com/Kaung-HtetKyaw/kgx/internal/testutil"
-	"github.com/Kaung-HtetKyaw/kgx/kghttp/internal"
+	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBodyReaderRead(t *testing.T) {
 	// Valid: Defined content length
-	r := &testutil.ChunkedReader{
+	r := kgbuf.NewReader(&testutil.ChunkedReader{
 		Data: "hello world" +
 			"GET / HTTP/1.1\r\n" +
 			"Content-Length: 0\r\n\r\n",
 		NumBytesPerRead: 8,
-	}
+	})
 
 	req := &Request{
 		RequestLine: RequestLine{
@@ -29,12 +29,8 @@ func TestBodyReaderRead(t *testing.T) {
 			"content-length": "11",
 		},
 	}
-	req.Body = &bodyReader{
-		src:     io.LimitReader(r, 11),
-		msg:     req,
-		chunked: true,
-	}
-
+	err := readTransfer(req, r)
+	require.NoError(t, err)
 	p := make([]byte, 8)
 	n, err := req.Body.Read(p)
 	require.NoError(t, err)
@@ -49,11 +45,11 @@ func TestBodyReaderRead(t *testing.T) {
 	assert.Equal(t, 0, n)
 
 	// Valid: Reading no body
-	r = &testutil.ChunkedReader{
+	r = kgbuf.NewReader(&testutil.ChunkedReader{
 		Data: "GET / HTTP/1.1\r\n" +
 			"Content-Length: 0\r\n\r\n",
 		NumBytesPerRead: 8,
-	}
+	})
 
 	req = &Request{
 		RequestLine: RequestLine{
@@ -65,7 +61,7 @@ func TestBodyReaderRead(t *testing.T) {
 			"content-length": "0",
 		},
 	}
-	req.Body = &internal.NoBody
+	err = readTransfer(req, r)
 	p = make([]byte, 8)
 	n, err = req.Body.Read(p)
 	require.Error(t, err)
@@ -73,7 +69,7 @@ func TestBodyReaderRead(t *testing.T) {
 	assert.Equal(t, 0, n)
 
 	// Valid: Chunked body without trailers
-	r = &testutil.ChunkedReader{
+	r = kgbuf.NewReader(&testutil.ChunkedReader{
 		Data: "5\r\n" +
 			"hello\r\n" +
 			"6\r\n" +
@@ -82,7 +78,7 @@ func TestBodyReaderRead(t *testing.T) {
 			"GET / HTTP/1.1\r\n" +
 			"Content-Length: 0\r\n\r\n",
 		NumBytesPerRead: 8,
-	}
+	})
 
 	req = &Request{
 		RequestLine: RequestLine{
@@ -91,15 +87,11 @@ func TestBodyReaderRead(t *testing.T) {
 			HttpVersion:   "HTTP/1.1",
 		},
 		Headers: Headers{
-			"content-length": "11",
+			"transfer-encoding": "chunked",
 		},
 	}
-	cr := internal.NewChunkedReader(r)
-	req.Body = &bodyReader{
-		src:     cr,
-		msg:     req,
-		chunked: true,
-	}
+	err = readTransfer(req, r)
+	require.NoError(t, err)
 	p = make([]byte, 5)
 	_, err = req.Body.Read(p)
 	require.NoError(t, err)
@@ -116,7 +108,7 @@ func TestBodyReaderRead(t *testing.T) {
 	assert.Equal(t, 0, n)
 
 	// Valid: Chunked body with trailers
-	r = &testutil.ChunkedReader{
+	r = kgbuf.NewReader(&testutil.ChunkedReader{
 		Data: "5\r\n" +
 			"hello\r\n" +
 			"6\r\n" +
@@ -127,7 +119,7 @@ func TestBodyReaderRead(t *testing.T) {
 			"GET / HTTP/1.1\r\n" +
 			"Content-Length: 0\r\n\r\n",
 		NumBytesPerRead: 8,
-	}
+	})
 
 	req = &Request{
 		RequestLine: RequestLine{
@@ -139,11 +131,7 @@ func TestBodyReaderRead(t *testing.T) {
 			"transfer-encoding": "chunked",
 		},
 	}
-	cr = internal.NewChunkedReader(r)
-	req.Body = &bodyReader{
-		src: cr,
-		msg: req,
-	}
+	err = readTransfer(req, r)
 	p = make([]byte, 5)
 	_, err = req.Body.Read(p)
 	require.NoError(t, err)
@@ -154,6 +142,10 @@ func TestBodyReaderRead(t *testing.T) {
 	_, err = req.Body.Read(p)
 	require.NoError(t, err)
 	assert.Equal(t, "dworl", string(p))
+	n, err = req.Body.Read(p)
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.EOF)
+	assert.Equal(t, 0, n)
 	trailer, ok := req.Trailers.Get("x-checksum")
 	assert.True(t, ok)
 	assert.Equal(t, "abcdefg", trailer)

@@ -2,15 +2,13 @@ package kghttp
 
 import (
 	"fmt"
-	"io"
-	"testing"
-
-	"strings"
-
 	"github.com/Kaung-HtetKyaw/kgx/internal/testutil"
 	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"io"
+	"strings"
+	"testing"
 )
 
 func TestRequestLineParse(t *testing.T) {
@@ -144,7 +142,7 @@ func TestBodyParse(t *testing.T) {
 			"Content-Length: 13\r\n" +
 			"\r\n" +
 			"hello world!\n",
-		NumBytesPerRead: 12,
+		NumBytesPerRead: 1024,
 	})
 	r, err := ReadRequest(reader)
 	require.NoError(t, err)
@@ -152,10 +150,11 @@ func TestBodyParse(t *testing.T) {
 	p := make([]byte, 13)
 	_, err = r.Body.Read(p)
 	require.NoError(t, err)
-	assert.Equal(t, "hello world!\x00", string(p))
-	_, err = r.Body.Read(p)
-	require.NoError(t, err)
 	assert.Equal(t, "hello world!\n", string(p))
+	n, err := r.Body.Read(p)
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.EOF)
+	assert.Equal(t, 0, n)
 
 	// Test: Empty Body, 0 reported content length
 	reader = kgbuf.NewReader(&testutil.ChunkedReader{
@@ -177,18 +176,21 @@ func TestBodyParse(t *testing.T) {
 	reader = kgbuf.NewReader(&testutil.ChunkedReader{
 		Data: "POST /submit HTTP/1.1\r\n" +
 			"Host: localhost:42069\r\n" +
-			"Content-Length: 20\r\n" +
+			"Content-Length: 30\r\n" +
 			"\r\n" +
 			"partial content",
-		NumBytesPerRead: 16,
+		NumBytesPerRead: 1024,
 	})
 	r, err = ReadRequest(reader)
 	require.NoError(t, err)
-	p = make([]byte, 20)
+	p = make([]byte, 15)
 	_, err = r.Body.Read(p)
+	require.NoError(t, err)
+	assert.Equal(t, "partial content", string(p))
+	n, err = r.Body.Read(p)
 	require.Error(t, err)
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
-	assert.Equal(t, "partial content \x00", string(p))
+	assert.Equal(t, 0, n)
 
 	// Test: No Content-Length but Body Exists
 	reader = kgbuf.NewReader(&testutil.ChunkedReader{
@@ -202,7 +204,7 @@ func TestBodyParse(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, r)
 	p = make([]byte, 4)
-	n, err := r.Body.Read(p)
+	n, err = r.Body.Read(p)
 	require.Error(t, err)
 	require.ErrorIs(t, err, io.EOF)
 	assert.Equal(t, 0, n)
