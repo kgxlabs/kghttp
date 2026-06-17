@@ -82,6 +82,7 @@ func (s *Server) handle(conn net.Conn) {
 		} else {
 			conn.SetReadDeadline(time.Time{})
 		}
+
 		req, err := ReadRequest(r)
 		conn.SetReadDeadline(time.Time{})
 		if err != nil {

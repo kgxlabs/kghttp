@@ -8,7 +8,7 @@ The goal is not to replace the standard library or popular tools like `net/http`
 
 | Package | Status | Description |
 |---------|--------|-------------|
-| [`kghttp`](./kghttp) | **Available** | HTTP/1.1 server on raw TCP — request parsing, response serialization, chunked bodies, trailers |
+| [`kghttp`](./kghttp) | **Available** | HTTP/1.1 server on raw TCP — request/response parsing, transfer readers, chunked bodies, trailers |
 | [`kgbuf`](./kgbuf) | **Available** | Minimal buffered reader utilities for this stack |
 | `kgroute` | **Coming Soon** | Minimal HTTP router (Chi-like API, fewer features) |
 | `kgcache` | **Coming Soon** | Small in-memory cache |

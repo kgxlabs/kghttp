@@ -1,14 +1,14 @@
 package kghttp
 
 import (
+	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"io"
 	"net"
 	"strconv"
 	"testing"
 	"time"
-
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestListenAndServe(t *testing.T) {
@@ -48,5 +48,7 @@ func TestListenAndServe(t *testing.T) {
 	resp, err := ReadResponse(reader, nil)
 	require.NoError(t, err)
 	assert.Equal(t, StatusOK, resp.StatusLine.StatusCode)
-	assert.Equal(t, "Hello World", string(resp.Body))
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "Hello World", string(body))
 }

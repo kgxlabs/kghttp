@@ -31,27 +31,23 @@ func (t *Transport) RoundTrip(req *Request) (*Response, error) {
 }
 
 func serializeRequest(req *Request) (string, error) {
-	message := ""
+	msg := ""
 	// TODO: Figure out how to sniff out invalid Request
 	if !isValidHttpMethod(req.RequestLine.Method) {
 		return "", ErrInvalidHttpMethod
 	}
 
-	message = req.RequestLine.Method + " " + req.RequestLine.RequestTarget + " " + req.RequestLine.HttpVersion + "\r\n"
-
-	// NOTE: there should always be headers when there is a body. Even for chunked data, there should be Transfer: chunked-encoding
-	// if there is none, err
-	if len(req.Headers) == 0 && len(req.Body) > 0 {
-		return "", ErrInvalidHttpRequest
-	}
+	msg = req.RequestLine.Method + " " + req.RequestLine.RequestTarget + " " + req.RequestLine.HttpVersion + "\r\n"
 
 	if req.Headers != nil {
 		for name, value := range req.Headers {
-			message = message + fmt.Sprintf("%s: %s\r\n", name, value)
+			msg = msg + fmt.Sprintf("%s: %s\r\n", name, value)
 		}
 	}
 
-	return "", nil
+	msg = msg + "\r\n"
+
+	return msg, nil
 }
 
 func isValidHttpMethod(method string) bool {

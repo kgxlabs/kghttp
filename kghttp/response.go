@@ -27,11 +27,11 @@ type ResponseWriter struct {
 }
 
 type Response struct {
-	StatusLine     StatusLine
-	Headers        Headers
-	Body           []byte
-	bodyLengthRead int
-	state          ResponseState
+	StatusLine StatusLine
+	Headers    Headers
+	Body       io.ReadCloser
+	Trailers   Headers
+	state      ResponseState
 }
 
 type StatusLine struct {
@@ -102,105 +102,15 @@ func ReadResponse(reader *kgbuf.Reader, req *Request) (*Response, error) {
 		if done {
 			response.state = ResponseStateParsingBody
 		}
+
 	}
 
-	contentLengthStr, ok := response.Headers.Get("content-length")
-	if !ok {
-		// TODO: Handle response-specific body rules, chunked responses, and close-delimited bodies.
-		response.state = ResponseStateDone
-		return response, nil
-	}
-
-	contentLen, err := strconv.Atoi(contentLengthStr)
-	if err != nil {
-		return nil, fmt.Errorf("malformed content length: %s", err)
-	}
-
-	// TODO: Handle response-specific no-body cases such as 1xx, 204, 304, and HEAD responses.
-	response.Body = make([]byte, contentLen)
-	n, err := reader.ReadFull(response.Body)
-	if err != nil {
+	if err := readTransfer(response, reader); err != nil {
 		return nil, err
 	}
-	response.bodyLengthRead = n
 	response.state = ResponseStateDone
 
 	return response, nil
-}
-
-func (r *Response) parse(data []byte) (int, error) {
-	totalBytesParsed := 0
-
-	for r.state != ResponseStateDone {
-		n, err := r.parseSingle(data[totalBytesParsed:])
-		if err != nil {
-			return 0, err
-		}
-
-		totalBytesParsed += n
-
-		if n == 0 {
-			break
-		}
-	}
-
-	return totalBytesParsed, nil
-}
-
-func (r *Response) parseSingle(data []byte) (int, error) {
-	switch r.state {
-	case ResponseStateInitialized:
-		statusLine, n, err := parseStatusLine(data)
-		if err != nil {
-			return 0, err
-		}
-
-		if n == 0 {
-			return 0, nil
-		}
-
-		r.state = ResponseStateParsingHeaders
-		r.StatusLine = *statusLine
-		return n, nil
-	case ResponseStateParsingHeaders:
-		n, done, err := r.Headers.Parse(data)
-		if err != nil {
-			return 0, err
-		}
-
-		if done {
-			r.state = ResponseStateParsingBody
-		}
-		return n, nil
-	case ResponseStateParsingBody:
-		contentLengthStr, ok := r.Headers.Get("content-length")
-		if !ok {
-			// TODO: Handle response-specific body rules, chunked responses, and close-delimited bodies.
-			r.state = ResponseStateDone
-			return 0, nil
-		}
-
-		contentLen, err := strconv.Atoi(contentLengthStr)
-		if err != nil {
-			return 0, fmt.Errorf("malformed content length: %s", err)
-		}
-
-		// TODO: Handle response-specific no-body cases such as 1xx, 204, 304, and HEAD responses.
-		remaining := contentLen - r.bodyLengthRead
-		consume := min(len(data), remaining)
-
-		r.Body = append(r.Body, data[:consume]...)
-		r.bodyLengthRead += consume
-
-		if r.bodyLengthRead == contentLen {
-			r.state = ResponseStateDone
-		}
-		return consume, nil
-	case ResponseStateDone:
-		return 0, fmt.Errorf("trying to read in done state: %s", r.state)
-	default:
-		return 0, fmt.Errorf("invalid response state: %s", r.state)
-	}
 }
 
 func parseStatusLine(data []byte) (*StatusLine, int, error) {
