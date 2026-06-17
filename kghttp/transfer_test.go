@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Kaung-HtetKyaw/kgx/internal/testutil"
+	"github.com/Kaung-HtetKyaw/kgx/kghttp/internal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +59,7 @@ func TestBodyReaderRead(t *testing.T) {
 			"content-length": "0",
 		},
 	}
-	req.Body = &NoBody
+	req.Body = &internal.NoBody
 	p = make([]byte, 8)
 	n, err = req.Body.Read(p)
 	require.Error(t, err)

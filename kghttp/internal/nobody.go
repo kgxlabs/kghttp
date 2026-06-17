@@ -1,4 +1,4 @@
-package kghttp
+package internal
 
 import "io"
 
