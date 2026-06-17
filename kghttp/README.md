@@ -4,7 +4,8 @@ An **HTTP/1.1** server library for Go, **built from scratch** on **raw TCP socke
 
 ## Features
 
-- **HTTP/1.1 request parsing** — request line, headers, and `Content-Length` bodies via a streaming parser
+- **HTTP/1.1 request parsing** — request line, headers, and body readers for `Content-Length`, `Transfer-Encoding: chunked`, and empty bodies
+- **HTTP/1.1 response parsing** — status line, headers, and the same transfer body reader used for requests
 - **Response writer** — status line, headers, fixed-length bodies, **chunked** transfer encoding, and optional **trailers**
 - **`Server` API** — configure `Addr`, `Handler`, and optional `IdleConnTimeOut`, then call `ListenAndServe()` or `Serve(net.Listener)`
 - **Concurrent connections** — one goroutine per accepted connection
@@ -34,10 +35,10 @@ Response Writer
 
 This project exists to understand HTTP on top of TCP—not to replace `net/http`. Along the way it implements:
 
-- **Request parsing** — incremental reads, request line, headers, bodies
+- **Message parsing** — incremental reads, request/status lines, headers, and transfer-aware body readers
 - **Response serialization** — status line, header blocks, body writes
 - **Persistent server connections** — repeated request parsing on the same accepted socket
-- **Chunked transfer encoding** — `WriteChunkedBody` / `WriteChunkedBodyDone`
+- **Chunked transfer encoding** — chunked body reads plus `WriteChunkedBody` / `WriteChunkedBodyDone`
 - **Trailers** — trailer headers after the final chunked chunk
 - **Reverse proxying** — demonstrated in the example server (stream upstream, re-encode as chunked + trailers)
 
@@ -116,9 +117,10 @@ curl -v http://localhost:8080/
 | `Server.Serve(net.Listener)` | Serve on an existing listener |
 | `Server.Close()` | Stop accepting new connections |
 | `Handler` | `func(w *ResponseWriter, req *Request)` |
-| `Request` | Parsed request line, headers, and body |
+| `Request` | Parsed request line, headers, `io.ReadCloser` body, and trailers |
 | `ReadRequest(*kgbuf.Reader)` | Parse a request from a buffered reader (used internally by the server) |
-| `ReadResponse(*kgbuf.Reader, *Request)` | Parse a fixed-length HTTP/1.1 response from a buffered reader |
+| `Response` | Parsed status line, headers, `io.ReadCloser` body, and trailers |
+| `ReadResponse(*kgbuf.Reader, *Request)` | Parse an HTTP/1.1 response from a buffered reader |
 | `ResponseWriter` | Build and send the HTTP response |
 | `ResponseWriter.WriteHeaders(StatusCode)` | Send status line + headers |
 | `ResponseWriter.WriteBody([]byte)` | Send a body after headers (fixed length) |
@@ -160,10 +162,12 @@ go test ./kghttp/...
 | Request line parsing | Yes | `request_test.go` — methods, targets, HTTP version, invalid lines |
 | Header parsing (request) | Yes | Via `ReadRequest` and `headers_test.go` field-line parser |
 | `Content-Length` bodies | Yes | `TestBodyParse` — full body, empty body, short body, no length |
+| Transfer body reader | Yes | `transfer_test.go` — `Content-Length`, empty, chunked, and chunked trailers |
 | Server (`Serve`) | Yes | `server_test.go` — end-to-end TCP request/response over a kept-alive connection |
 | Response writer | Yes | `response_test.go` — fixed-length body serialization |
+| Response parser | Yes | `response_test.go` — status line, headers, fixed-length body, multiple responses |
 | Chunked encoding | Yes | `TestWriteResponseChunkedWithTrailers` — chunk framing |
-| Trailers | Yes | `TestWriteResponseChunkedWithTrailers` — trailer block after final chunk |
+| Trailers | Yes | `TestWriteResponseChunkedWithTrailers` and `transfer_test.go` — trailer block after final chunk |
 
 Tests use a `chunkReader` helper to simulate variable-size TCP reads.
 
@@ -177,6 +181,11 @@ kghttp/
 ├── request_test.go     # Request line, headers, body tests
 ├── response.go         # ResponseWriter, status codes, chunked + trailers
 ├── response_test.go    # Response writer, chunked, and trailer tests
+├── transfer.go         # Shared request/response body reader selection
+├── transfer_test.go    # Content-Length, chunked, and trailer body reader tests
+├── internal/
+│   ├── chunked.go      # Chunked transfer body reader
+│   └── nobody.go       # Empty body reader
 ├── headers.go          # Header map and field-line parsing
 └── headers_test.go     # Standalone header field-line tests
 ```
@@ -193,13 +202,15 @@ Each accepted TCP connection is handled like this:
 
 Handlers own the response framing. For fixed-length responses, set `Content-Length` before `WriteHeaders`; for streamed responses, set `Transfer-Encoding: chunked`, write chunks, then call `WriteChunkedBodyDone`.
 
+Parsed request and response bodies are exposed as `io.ReadCloser`. If `Transfer-Encoding: chunked` is present, reads decode chunks and parse trailers after the terminating `0` chunk. If `Content-Length` is present, reads are limited to that length and return `io.ErrUnexpectedEOF` when the stream ends early. If neither header is present, the body is empty.
+
 ## Current limitations
 
 - **HTTP/1.1 only** — request lines must use `HTTP/1.1`; methods must be uppercase letters
 - **No TLS/HTTPS** — plain TCP only
 - **No HTTP/2**
 - **No HTTP client** — upstream calls in the demo use Go's `net/http` client
-- **Limited response parser** — `ReadResponse` supports `Content-Length` bodies; chunked, close-delimited, and status-specific no-body rules are not implemented yet
+- **Limited transfer handling** — close-delimited bodies, status/method-specific no-body rules, and chunk extensions are not implemented yet
 - **Limited status codes** — writer reason phrases for 200, 400, and 500 only
 - **Handler-owned responses** — the library does not set `Content-Length` or pick a status for you; call `WriteHeaders` then write the body (or chunks) in order
 - **No in-flight drain on shutdown** — `Close()` closes the listener; active handlers are not joined

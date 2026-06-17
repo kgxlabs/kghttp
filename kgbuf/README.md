@@ -13,7 +13,10 @@ It is similar in spirit to parts of Go's `bufio`, but smaller and tailored to th
 | `Read([]byte)` | Implemented | Reads bytes into a caller-provided buffer |
 | `ReadFull([]byte)` | Implemented | Reads until the caller-provided buffer is filled or EOF is reached |
 | `ReadBytes(delim []byte)` | Implemented | Reads through the next delimiter and returns the consumed bytes |
+| `ReadBytesLimit(delim []byte, limit int)` | Implemented | Reads through the next delimiter while enforcing a byte budget |
+| `ReadSlice(delim byte)` | Implemented | Reads through the next delimiter byte and returns a slice backed by the internal buffer |
 | `ReadString(delim string)` | Implemented | Reads through the next delimiter and returns the consumed string |
+| `ReadStringLimit(delim string, limit int)` | Implemented | Reads through the next delimiter string while enforcing a byte budget |
 | `Peek(n int)` | Implemented | Reads the next `n` bytes into the internal buffer without consuming them |
 | `Buffered()` | Implemented | Returns the number of bytes currently buffered and unread |
 | `Size()` | Implemented | Returns the current internal buffer capacity |
@@ -151,7 +154,10 @@ func main() {
 | `Reader.Read([]byte)` | Reads up to the caller-provided buffer size |
 | `Reader.ReadFull([]byte)` | Reads until the caller-provided buffer is filled, returning `io.ErrUnexpectedEOF` with partial data if EOF arrives first |
 | `Reader.ReadBytes(delim []byte)` | Reads until `delim` is found and includes `delim` in the returned bytes |
+| `Reader.ReadBytesLimit(delim []byte, limit int)` | Reads until `delim` is found or returns `ErrByteReadLimitReached` when the limit is exhausted |
+| `Reader.ReadSlice(delim byte)` | Reads until `delim` is found and returns a slice backed by the internal buffer |
 | `Reader.ReadString(delim string)` | Reads until `delim` is found and includes `delim` in the returned string |
+| `Reader.ReadStringLimit(delim string, limit int)` | String wrapper around `ReadBytesLimit` |
 | `Reader.Peek(n int)` | Buffers and returns the next `n` bytes without advancing the read cursor |
 | `Reader.Buffered()` | Reports how many bytes are currently buffered |
 | `Reader.Size()` | Reports the current buffer capacity |
@@ -167,8 +173,12 @@ func main() {
 - `ReadFull` fills the provided byte slice before returning successfully.
 - `ReadFull` returns partial data and `io.ErrUnexpectedEOF` if EOF arrives before the slice is full.
 - `ReadBytes` and `ReadString` return the delimiter as part of the returned value.
-- If the delimiter is not found before EOF, `ReadBytes` returns an empty slice and no error.
-- If the delimiter is not found before EOF, `ReadString` currently returns an empty string and no error.
+- If the delimiter is not found before EOF, `ReadBytes` returns the partial data with `io.EOF`.
+- If the delimiter is not found before EOF, `ReadString` returns the partial string with `io.EOF`.
+- `ReadSlice` returns a buffer-backed slice when it finds the delimiter.
+- Callers should treat `ReadSlice` results as short-lived because later reads may overwrite the internal buffer.
+- If `ReadSlice` cannot find the delimiter before the buffer fills, it returns `ErrBufferFull`.
+- `ReadBytesLimit` and `ReadStringLimit` return `ErrByteReadLimitReached` when the delimiter is not found before the byte budget is exhausted.
 - `Peek(0)` returns an empty slice and no error.
 - `Peek(n)` stores the returned bytes in the buffer without consuming them.
 - `Peek(n)` returns `ErrPartialRead` when fewer than `n` bytes are available.
@@ -185,4 +195,3 @@ go test ./kgbuf/...
 ## Current limitations
 
 - The buffer currently uses compaction; a ring buffer is noted as a future improvement in the source.
-- `ReadBytes` and `ReadString` return an empty result instead of partial data when the delimiter is not found before EOF.
