@@ -94,6 +94,10 @@ func (cr *chunkedReader) beginChunkProcess() {
 	// read chunk line
 	var line []byte
 	line, cr.err = readChunkLine(cr.r)
+	if cr.err != nil {
+		return
+	}
+
 	var n uint64
 	n, cr.err = cr.parseHexUnit(line)
 	cr.n = int(n)
@@ -179,6 +183,10 @@ func (cr *chunkedReader) Read(p []byte) (n int, err error) {
 		} else if err == io.EOF {
 			cr.err = io.ErrUnexpectedEOF
 		}
+	}
+
+	if n > 0 && cr.err == io.EOF {
+		return n, nil
 	}
 
 	return n, cr.err
