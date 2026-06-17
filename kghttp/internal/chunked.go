@@ -123,7 +123,7 @@ func (cr *chunkedReader) chunkHeaderAvailable() bool {
 func (cr *chunkedReader) Read(p []byte) (n int, err error) {
 	for cr.err == nil {
 		if cr.chunkEnded {
-			// there is no trailing CRLF available yet.
+			// If there is no trailing CRLF available yet.
 			// Return early instead of keep waiting and blocking next read
 			if n > 0 && cr.r.Buffered() < 2 {
 				break

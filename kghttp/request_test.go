@@ -2,6 +2,7 @@ package kghttp
 
 import (
 	"fmt"
+	"io"
 	"testing"
 
 	"strings"
@@ -143,12 +144,18 @@ func TestBodyParse(t *testing.T) {
 			"Content-Length: 13\r\n" +
 			"\r\n" +
 			"hello world!\n",
-		NumBytesPerRead: 3,
+		NumBytesPerRead: 12,
 	})
 	r, err := ReadRequest(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, "hello world!\n", string(r.Body))
+	p := make([]byte, 13)
+	_, err = r.Body.Read(p)
+	require.NoError(t, err)
+	assert.Equal(t, "hello world!\x00", string(p))
+	_, err = r.Body.Read(p)
+	require.NoError(t, err)
+	assert.Equal(t, "hello world!\n", string(p))
 
 	// Test: Empty Body, 0 reported content length
 	reader = kgbuf.NewReader(&testutil.ChunkedReader{
@@ -161,7 +168,10 @@ func TestBodyParse(t *testing.T) {
 	r, err = ReadRequest(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, "", string(r.Body))
+	p = make([]byte, 4)
+	_, err = r.Body.Read(p)
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.EOF)
 
 	// Test: Body shorter than reported content length
 	reader = kgbuf.NewReader(&testutil.ChunkedReader{
@@ -170,10 +180,15 @@ func TestBodyParse(t *testing.T) {
 			"Content-Length: 20\r\n" +
 			"\r\n" +
 			"partial content",
-		NumBytesPerRead: 3,
+		NumBytesPerRead: 16,
 	})
 	r, err = ReadRequest(reader)
+	require.NoError(t, err)
+	p = make([]byte, 20)
+	_, err = r.Body.Read(p)
 	require.Error(t, err)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	assert.Equal(t, "partial content \x00", string(p))
 
 	// Test: No Content-Length but Body Exists
 	reader = kgbuf.NewReader(&testutil.ChunkedReader{
@@ -186,10 +201,15 @@ func TestBodyParse(t *testing.T) {
 	r, err = ReadRequest(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, "", string(r.Body))
+	p = make([]byte, 4)
+	n, err := r.Body.Read(p)
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.EOF)
+	assert.Equal(t, 0, n)
 }
 
 func TestReadRequestReadsMultipleRequests(t *testing.T) {
+	// Valid: multiple requests
 	reader := kgbuf.NewReader(strings.NewReader(
 		"POST /one HTTP/1.1\r\n" +
 			"Host: localhost:42069\r\n" +
@@ -207,14 +227,26 @@ func TestReadRequestReadsMultipleRequests(t *testing.T) {
 	require.NotNil(t, r)
 	assert.Equal(t, "POST", r.RequestLine.Method)
 	assert.Equal(t, "/one", r.RequestLine.RequestTarget)
-	assert.Equal(t, "first", string(r.Body))
+	p := make([]byte, 5)
+	_, err = r.Body.Read(p)
+	require.NoError(t, err)
+	assert.Equal(t, "first", string(p))
+	n, err := r.Body.Read(p)
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.EOF)
+	assert.Equal(t, 0, n)
 
 	r, err = ReadRequest(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
 	assert.Equal(t, "GET", r.RequestLine.Method)
 	assert.Equal(t, "/two", r.RequestLine.RequestTarget)
-	assert.Equal(t, "", string(r.Body))
+	p = make([]byte, 4)
+	require.NoError(t, err)
+	n, err = r.Body.Read(p)
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.EOF)
+	assert.Equal(t, 0, n)
 }
 
 func TestReadRequestLimitRequestLine(t *testing.T) {

@@ -15,6 +15,7 @@ type Request struct {
 	RequestLine    RequestLine
 	Headers        Headers
 	Body           io.ReadCloser
+	Trailers       Headers
 	bodyLengthRead int
 	state          RequestState
 }

@@ -2,6 +2,7 @@ package kghttp
 
 import (
 	"bytes"
+	"io"
 	"strings"
 
 	"github.com/Kaung-HtetKyaw/kgx/internal/testutil"
@@ -161,7 +162,9 @@ func TestReadResponseBody(t *testing.T) {
 	resp, err := ReadResponse(reader, nil)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	assert.Equal(t, "Hello World!", string(resp.Body))
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "Hello World!", string(body))
 
 	reader = kgbuf.NewReader(&testutil.ChunkedReader{
 		Data: "HTTP/1.1 200 OK\r\n" +
@@ -173,7 +176,9 @@ func TestReadResponseBody(t *testing.T) {
 	resp, err = ReadResponse(reader, nil)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	assert.Equal(t, "", string(resp.Body))
+	body, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "", string(body))
 
 	reader = kgbuf.NewReader(&testutil.ChunkedReader{
 		Data: "HTTP/1.1 200 OK\r\n" +
@@ -183,7 +188,10 @@ func TestReadResponseBody(t *testing.T) {
 		NumBytesPerRead: 3,
 	})
 
-	_, err = ReadResponse(reader, nil)
+	resp, err = ReadResponse(reader, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	_, err = io.ReadAll(resp.Body)
 	require.Error(t, err)
 
 	reader = kgbuf.NewReader(&testutil.ChunkedReader{
@@ -196,7 +204,9 @@ func TestReadResponseBody(t *testing.T) {
 	resp, err = ReadResponse(reader, nil)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	assert.Equal(t, "", string(resp.Body))
+	body, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "", string(body))
 }
 
 func TestReadResponseReadsMultipleResponses(t *testing.T) {
@@ -215,13 +225,17 @@ func TestReadResponseReadsMultipleResponses(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	assert.Equal(t, StatusOK, resp.StatusLine.StatusCode)
-	assert.Equal(t, "first", string(resp.Body))
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "first", string(body))
 
 	resp, err = ReadResponse(reader, nil)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	assert.Equal(t, StatusInternalServerError, resp.StatusLine.StatusCode)
-	assert.Equal(t, "second", string(resp.Body))
+	body, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "second", string(body))
 }
 
 func newTestWriter() (*ResponseWriter, *memWriter) {
