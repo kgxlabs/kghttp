@@ -7,18 +7,18 @@ import (
 )
 
 // if the r is significantly smaller than w, it is not worth to copy large chunks of bytes to free up small chunks of bytes
-// For example, bufferSize=4029, r=2 and w=4029, we have to copy 4027 bytes just to free up 2 bytes. Since we compact the buffer after number of consumed bytes is more than half of the buffer size
+// For example, readerDefaultBufferSize=4029, r=2 and w=4029, we have to copy 4027 bytes just to free up 2 bytes. Since we compact the buffer after number of consumed bytes is more than half of the buffer size
 // In addition to that, we no longer need to copy bytes since we are gonna overwrite consumed bytes
 // TODO: Replace compact buffer with circular(ring) buffer
 type Reader struct {
-	buf         []byte
-	reader      io.Reader
-	r           int
-	w           int
-	defaultSize int
+	buf    []byte
+	reader io.Reader
+	r      int
+	w      int
+	size   int
 }
 
-const bufferSize = 4096
+const readerDefaultBufferSize = 4096
 
 var (
 	ErrReaderFailedToRead   = errors.New("kgbuf: reader failed to read")
@@ -29,17 +29,17 @@ var (
 
 func NewReader(reader io.Reader) *Reader {
 	return &Reader{
-		buf:         make([]byte, bufferSize),
-		reader:      reader,
-		defaultSize: bufferSize,
+		buf:    make([]byte, readerDefaultBufferSize),
+		reader: reader,
+		size:   readerDefaultBufferSize,
 	}
 }
 
 func NewReaderSize(reader io.Reader, size int) *Reader {
 	return &Reader{
-		buf:         make([]byte, size),
-		reader:      reader,
-		defaultSize: size,
+		buf:    make([]byte, size),
+		reader: reader,
+		size:   size,
 	}
 }
 
@@ -165,7 +165,6 @@ func (b *Reader) ReadBytes(delim []byte) ([]byte, error) {
 		}
 	}
 
-	return []byte{}, nil
 }
 
 func (b *Reader) ReadSlice(delim byte) ([]byte, error) {

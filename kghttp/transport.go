@@ -27,12 +27,12 @@ var (
 )
 
 func (t *Transport) RoundTrip(req *Request) (*Response, error) {
+
 	return nil, nil
 }
 
 func serializeRequest(req *Request) (string, error) {
 	msg := ""
-	// TODO: Figure out how to sniff out invalid Request
 	if !isValidHttpMethod(req.RequestLine.Method) {
 		return "", ErrInvalidHttpMethod
 	}

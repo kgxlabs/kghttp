@@ -1,6 +1,6 @@
 # kgbuf
 
-`kgbuf` is a small buffered I/O package for the `kgx` stack. It is intentionally minimal: the goal is to provide just enough buffered reading behavior for the surrounding packages while keeping the implementation easy to read.
+`kgbuf` is a small buffered I/O package for the `kgx` stack. It is intentionally minimal: the goal is to provide just enough buffered reading and writing behavior for the surrounding packages while keeping the implementation easy to read.
 
 It is similar in spirit to parts of Go's `bufio`, but smaller and tailored to this project.
 
@@ -21,6 +21,10 @@ It is similar in spirit to parts of Go's `bufio`, but smaller and tailored to th
 | `Buffered()` | Implemented | Returns the number of bytes currently buffered and unread |
 | `Size()` | Implemented | Returns the current internal buffer capacity |
 | `Reset(io.Reader)` | Implemented | Reuses the reader with a new underlying `io.Reader` |
+| `Write([]byte)` | Implemented | Writes bytes through the writer buffer |
+| `WriteString(string)` | Implemented | Writes a string through the writer buffer |
+| `Flush()` | Implemented | Writes buffered data to the underlying writer |
+| `Available()` | Implemented | Returns the remaining writer buffer capacity |
 
 ## Usage
 
@@ -144,6 +148,33 @@ func main() {
 }
 ```
 
+Write bytes through a buffered writer:
+
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+
+	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+)
+
+func main() {
+	var out bytes.Buffer
+	w := kgbuf.NewWriter(&out)
+
+	if _, err := w.WriteString("hello world"); err != nil {
+		panic(err)
+	}
+	if err := w.Flush(); err != nil {
+		panic(err)
+	}
+
+	fmt.Println(out.String())
+}
+```
+
 ## API overview
 
 | Type / function | Role |
@@ -162,6 +193,14 @@ func main() {
 | `Reader.Buffered()` | Reports how many bytes are currently buffered |
 | `Reader.Size()` | Reports the current buffer capacity |
 | `Reader.Reset(io.Reader)` | Clears buffered state and switches to a new underlying reader |
+| `Writer` | Wraps an `io.Writer` with an internal buffer |
+| `NewWriter(io.Writer)` | Creates a new buffered writer |
+| `NewWriterSize(io.Writer, int)` | Creates a new buffered writer with a custom internal buffer size |
+| `Writer.Write([]byte)` | Buffers data or writes directly when the input is larger than the available buffer |
+| `Writer.WriteString(string)` | String wrapper around `Write` |
+| `Writer.Flush()` | Writes buffered data to the underlying writer |
+| `Writer.Buffered()` | Reports how many bytes are currently buffered for writing |
+| `Writer.Available()` | Reports remaining space in the writer buffer |
 
 ## Behavior today
 
@@ -183,6 +222,11 @@ func main() {
 - `Peek(n)` stores the returned bytes in the buffer without consuming them.
 - `Peek(n)` returns `ErrPartialRead` when fewer than `n` bytes are available.
 - `Reset` clears buffered data and read/write cursor state.
+- The writer keeps data in an internal buffer until the buffer fills, a large write bypasses the buffer, or `Flush` is called.
+- `Write` returns the number of bytes accepted from the provided slice.
+- `WriteString` writes string data through the same path as `Write`.
+- `Flush` is a no-op when the writer buffer is empty.
+- `Buffered` and `Available` report writer buffer usage.
 
 ## Tests
 
