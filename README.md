@@ -9,7 +9,7 @@ The goal is not to replace the standard library or popular tools like `net/http`
 | Package | Status | Description |
 |---------|--------|-------------|
 | [`kghttp`](./kghttp) | **Available** | HTTP/1.1 server on raw TCP — request/response parsing, transfer readers, chunked bodies, trailers |
-| [`kgbuf`](./kgbuf) | **Available** | Minimal buffered reader utilities for this stack |
+| [`kgbuf`](./kgbuf) | **Available** | Minimal buffered I/O utilities for this stack |
 | `kgroute` | **Coming Soon** | Minimal HTTP router (Chi-like API, fewer features) |
 | `kgcache` | **Coming Soon** | Small in-memory cache |
 | `kgdb` | **Coming Soon** | Minimal embedded database |
@@ -58,7 +58,7 @@ go test ./kgbuf/...
 ```
 .
 ├── go.mod
-├── kgbuf/               # Minimal buffered reader utilities (available)
+├── kgbuf/               # Minimal buffered I/O utilities (available)
 │   └── README.md
 ├── kghttp/              # HTTP/1.1 server (available)
 │   └── README.md
