@@ -66,6 +66,10 @@ func (w *Writer) Flush() error {
 	return err
 }
 
+func (w *Writer) WriteString(str string) (int, error) {
+	return w.Write([]byte(str))
+}
+
 func (w *Writer) Buffered() int {
 	return w.n
 }
