@@ -75,12 +75,12 @@ func TestReaderReadSlice(t *testing.T) {
 	assert.Equal(t, "", string(line))
 
 	// Invalid: No delim found and buffer fills
-	s := makeHugeString(bufferSize+16, "")
+	s := makeHugeString(readerDefaultBufferSize+16, "")
 	reader = newTestReader(fmt.Sprintf("%s\n", s), 1024)
 	line, err = reader.ReadSlice('\n')
 	require.Error(t, err)
 	require.ErrorIs(t, err, ErrBufferFull)
-	assert.Equal(t, bufferSize, len(line))
+	assert.Equal(t, readerDefaultBufferSize, len(line))
 }
 
 func TestReaderRead(t *testing.T) {
@@ -160,14 +160,14 @@ func TestReaderSizeCap(t *testing.T) {
 	// Valid: Empty buffer with capacity
 	reader := newTestReader("", 8)
 	assert.Equal(t, 0, reader.Buffered())
-	assert.Equal(t, reader.defaultSize, reader.Size())
+	assert.Equal(t, reader.size, reader.Size())
 
 	// Valid: buffer with content
 	reader = newTestReader("hello world", 11)
 	_, err := reader.Peek(11)
 	require.NoError(t, err)
 	assert.Equal(t, 11, reader.Buffered())
-	assert.Equal(t, reader.defaultSize, reader.Size())
+	assert.Equal(t, reader.size, reader.Size())
 
 }
 
