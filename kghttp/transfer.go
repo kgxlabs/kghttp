@@ -14,12 +14,13 @@ type bodyReader struct {
 	src io.Reader
 	r   *kgbuf.Reader
 	// ref to a message either *Request or *Response
-	msg         any
-	sawEOF      bool
-	closed      bool
-	earlyClosed bool
-	chunked     bool
-	remaining   int
+	msg             any
+	sawEOF          bool
+	closed          bool
+	earlyClosed     bool
+	chunked         bool
+	remaining       int
+	onHitEOForClose func()
 }
 
 func readCloser(r *kgbuf.Reader, headers Headers, msg any) (io.ReadCloser, error) {
@@ -125,44 +126,53 @@ func transferFields(r *kgbuf.Reader, msg any) error {
 
 }
 
-func (br *bodyReader) Read(p []byte) (int, error) {
+func (br *bodyReader) Read(p []byte) (nn int, err error) {
 	if br.closed {
 		if br.earlyClosed || !br.sawEOF {
-			return 0, io.ErrUnexpectedEOF
-		}
-		return 0, io.EOF
-	}
-
-	n, err := br.src.Read(p)
-
-	if n > 0 {
-		br.remaining -= n
-	}
-
-	if err != nil && err == io.EOF {
-		br.closed = true
-		if br.remaining > 0 {
-			br.earlyClosed = true
-			return n, io.ErrUnexpectedEOF
+			err = io.ErrUnexpectedEOF
 		}
 
-		br.sawEOF = true
+		err = io.EOF
+	} else {
+		nn, err = br.src.Read(p)
 
-		// after 0\r\n is processed, parse trailers
-		if br.chunked {
-			if trailerErr := transferFields(br.r, br.msg); trailerErr != nil {
-				return n, trailerErr
+		if nn > 0 {
+			br.remaining -= nn
+		}
+
+		if err != nil && err == io.EOF {
+			br.closed = true
+			if br.remaining > 0 {
+				br.earlyClosed = true
+				err = io.ErrUnexpectedEOF
+			}
+
+			br.sawEOF = true
+
+			// after 0\r\n is processed, parse trailers
+			if br.chunked {
+				if trailerErr := transferFields(br.r, br.msg); trailerErr != nil {
+					err = trailerErr
+				}
 			}
 		}
+
 	}
 
-	return n, err
+	if err != nil {
+		br.triggerEOFSignal()
+	}
+
+	return nn, err
 }
 
 func (br *bodyReader) Close() error {
+	br.onHitEOForClose()
 	return nil
 }
 
-func (br *bodyReader) readTrailers() error {
-	return nil
+func (br *bodyReader) triggerEOFSignal() {
+	if br.onHitEOForClose != nil {
+		br.onHitEOForClose()
+	}
 }

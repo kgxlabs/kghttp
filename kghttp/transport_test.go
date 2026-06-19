@@ -1,74 +1,63 @@
 package kghttp
 
 import (
+	"io"
+	"net"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/Kaung-HtetKyaw/kgx/kgurl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
-func TestTransportRequestSerialization(t *testing.T) {
-	// Valid: request with no body
-	requestLine := &RequestLine{
-		HttpVersion:   "HTTP/1.1",
-		Method:        "GET",
-		RequestTarget: "/",
+func TestTransportRoundTrip(t *testing.T) {
+	// Valid: GET request
+	ln, err := net.Listen("tcp", "127.0.0.1:80")
+	require.NoError(t, err)
+
+	server := &Server{
+		Handler: func(w *ResponseWriter, req *Request) {
+			body := "Hello World"
+			data := []byte(body)
+			w.Headers().Set("content-length", strconv.Itoa(len(data)))
+			w.Headers().Set("content-type", "text/plain")
+			w.WriteHeaders(200)
+			w.WriteBody(data)
+
+		},
+		IdleConnTimeOut: 5 * time.Second,
 	}
-	headers := &Headers{
-		"host": "example.com",
-	}
+	err = server.Serve(ln)
+	require.NoError(t, err)
+	defer server.Close()
+
+	url, err := kgurl.Parse("http://localhost")
+	require.NoError(t, err)
 	req := &Request{
-		RequestLine: *requestLine,
-		Headers:     *headers,
+		Method:     "GET",
+		Proto:      "HTTP",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		URL:        url,
+		Headers: Headers{
+			"host": "localhost",
+		},
 	}
-	m, err := serializeRequest(req)
+
+	transport := NewTransport()
+	resp, err := transport.RoundTrip(req)
 	require.NoError(t, err)
-	assert.Contains(t, m, "GET / HTTP/1.1\r\n")
-	assert.Contains(t, m, "host: example\r\n\r\n")
-
-	// Valid: request with body
-	requestLine = &RequestLine{
-		HttpVersion:   "HTTP/1.1",
-		Method:        "POST",
-		RequestTarget: "/message",
-	}
-	headers = &Headers{
-		"content-type":   "text/plain",
-		"content-length": "12",
-	}
-	req = &Request{
-		RequestLine: *requestLine,
-		Headers:     *headers,
-	}
-	m, err = serializeRequest(req)
+	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	assert.Contains(t, m, "POST /message HTTP/1.1\r\n")
-	assert.Contains(t, m, "content-type: text/plain\r\n")
-	assert.Contains(t, m, "content-length: 12\r\n")
-	assert.Contains(t, m, "message body")
+	assert.Equal(t, "Hello World", string(body))
 
-	// Invalid: Incorrect HTTP request line
-	requestLine = &RequestLine{
-		HttpVersion:   "HTTP /1.1",
-		Method:        "TEST",
-		RequestTarget: "/",
-	}
-	req = &Request{
-		RequestLine: *requestLine,
-	}
-	m, err = serializeRequest(req)
-	require.Error(t, err)
+	// Valid: POST request declared content-length
 
-	// Invalid: Having body without headers
-	requestLine = &RequestLine{
-		HttpVersion:   "HTTP/1.1",
-		Method:        "POST",
-		RequestTarget: "/",
-	}
-	req = &Request{
-		RequestLine: *requestLine,
-		Body:        []byte("message body"),
-	}
-	m, err = serializeRequest(req)
-	require.Error(t, err)
+	// Valid: POST request chunked encoding
 
+	// Invalid: Body shorter than declared content-length
+
+	// Invalid: Malformed chunked encoding
 }

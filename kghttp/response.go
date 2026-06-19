@@ -294,3 +294,21 @@ func getReasonPhrase(s StatusCode) string {
 		return ""
 	}
 }
+
+func getHTTPVersion(proto string) (string, error) {
+	if !validateHTTPVersion(proto) {
+		return "", errors.New("Invalid HTTP Version")
+	}
+
+	parts := strings.Split(proto, "/")
+
+	if parts[0] != "HTTP" {
+		return "", errors.New("Invalid HTTP Version")
+	}
+
+	if parts[1] != "1.1" {
+		return "", errors.New("Invalid HTTP Version")
+	}
+
+	return parts[1], nil
+}

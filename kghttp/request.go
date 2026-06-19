@@ -130,6 +130,10 @@ func (r *Request) parseRequestLine(data []byte) (int, error) {
 	return i + 2, nil
 }
 
+func (r *Request) HTTPVersion() string {
+	return fmt.Sprintf("%s/%d.%d", r.Proto, r.ProtoMajor, r.ProtoMinor)
+}
+
 func validateRequestMethod(method string) bool {
 	if method == "" {
 		return false
@@ -159,24 +163,6 @@ func validateHTTPVersion(proto string) bool {
 	}
 
 	return true
-}
-
-func getHTTPVersion(proto string) (string, error) {
-	if !validateHTTPVersion(proto) {
-		return "", errors.New("Invalid HTTP Version")
-	}
-
-	parts := strings.Split(proto, "/")
-
-	if parts[0] != "HTTP" {
-		return "", errors.New("Invalid HTTP Version")
-	}
-
-	if parts[1] != "1.1" {
-		return "", errors.New("Invalid HTTP Version")
-	}
-
-	return parts[1], nil
 }
 
 func parseHTTPVersion(proto string) (string, int, int, error) {
