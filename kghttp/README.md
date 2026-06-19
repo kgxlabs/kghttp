@@ -76,7 +76,7 @@ func main() {
 	server := &kghttp.Server{
 		Addr: ":8080",
 		Handler: func(w *kghttp.ResponseWriter, req *kghttp.Request) {
-			body := []byte(fmt.Sprintf("Hello from %s %s\n", req.RequestLine.Method, req.RequestLine.RequestTarget))
+			body := []byte(fmt.Sprintf("Hello from %s %s\n", req.Method, req.URL.Path))
 
 			w.Headers().Set("content-type", "text/plain")
 			w.Headers().Set("content-length", strconv.Itoa(len(body)))
@@ -117,7 +117,7 @@ curl -v http://localhost:8080/
 | `Server.Serve(net.Listener)` | Serve on an existing listener |
 | `Server.Close()` | Stop accepting new connections |
 | `Handler` | `func(w *ResponseWriter, req *Request)` |
-| `Request` | Parsed request line, headers, `io.ReadCloser` body, and trailers |
+| `Request` | Parsed method, URL, protocol version, headers, `io.ReadCloser` body, and trailers |
 | `ReadRequest(*kgbuf.Reader)` | Parse a request from a buffered reader (used internally by the server) |
 | `Response` | Parsed status line, headers, `io.ReadCloser` body, and trailers |
 | `ReadResponse(*kgbuf.Reader, *Request)` | Parse an HTTP/1.1 response from a buffered reader |
@@ -159,7 +159,7 @@ go test ./kghttp/...
 
 | Area | Covered? | Notes |
 |------|----------|-------|
-| Request line parsing | Yes | `request_test.go` — methods, targets, HTTP version, invalid lines |
+| Request line parsing | Yes | `request_test.go` — method, URL, HTTP version fields, invalid lines |
 | Header parsing (request) | Yes | Via `ReadRequest` and `headers_test.go` field-line parser |
 | `Content-Length` bodies | Yes | `TestBodyParse` — full body, empty body, short body, no length |
 | Transfer body reader | Yes | `transfer_test.go` — `Content-Length`, empty, chunked, and chunked trailers |

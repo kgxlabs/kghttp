@@ -20,11 +20,10 @@ func TestBodyReaderRead(t *testing.T) {
 	})
 
 	req := &Request{
-		RequestLine: RequestLine{
-			Method:        "POST",
-			RequestTarget: "/message",
-			HttpVersion:   "HTTP/1.1",
-		},
+		Method:     "POST",
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
 		Headers: Headers{
 			"content-length": "11",
 		},
@@ -52,11 +51,10 @@ func TestBodyReaderRead(t *testing.T) {
 	})
 
 	req = &Request{
-		RequestLine: RequestLine{
-			Method:        "GET",
-			RequestTarget: "/message",
-			HttpVersion:   "HTTP/1.1",
-		},
+		Method:     "GET",
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
 		Headers: Headers{
 			"content-length": "0",
 		},
@@ -81,11 +79,10 @@ func TestBodyReaderRead(t *testing.T) {
 	})
 
 	req = &Request{
-		RequestLine: RequestLine{
-			Method:        "POST",
-			RequestTarget: "/message",
-			HttpVersion:   "HTTP/1.1",
-		},
+		Method:     "POST",
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
 		Headers: Headers{
 			"transfer-encoding": "chunked",
 		},
@@ -122,11 +119,10 @@ func TestBodyReaderRead(t *testing.T) {
 	})
 
 	req = &Request{
-		RequestLine: RequestLine{
-			Method:        "POST",
-			RequestTarget: "/message",
-			HttpVersion:   "HTTP/1.1",
-		},
+		Method:     "POST",
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
 		Headers: Headers{
 			"transfer-encoding": "chunked",
 		},
