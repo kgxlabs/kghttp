@@ -20,9 +20,11 @@ func TestRequestLineParse(t *testing.T) {
 	r, err := ReadRequest(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, "GET", r.RequestLine.Method)
-	assert.Equal(t, "/", r.RequestLine.RequestTarget)
-	assert.Equal(t, "1.1", r.RequestLine.HttpVersion)
+	assert.Equal(t, "GET", r.Method)
+	assert.Equal(t, "/", r.URL.Path)
+	assert.Equal(t, "HTTP/1.1", r.Proto)
+	assert.Equal(t, 1, r.ProtoMajor)
+	assert.Equal(t, 1, r.ProtoMinor)
 
 	// Test: Good GET Request line with path
 	reader = kgbuf.NewReader(&testutil.ChunkedReader{
@@ -32,9 +34,11 @@ func TestRequestLineParse(t *testing.T) {
 	r, err = ReadRequest(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, "GET", r.RequestLine.Method)
-	assert.Equal(t, "/coffee", r.RequestLine.RequestTarget)
-	assert.Equal(t, "1.1", r.RequestLine.HttpVersion)
+	assert.Equal(t, "GET", r.Method)
+	assert.Equal(t, "/coffee", r.URL.Path)
+	assert.Equal(t, "HTTP/1.1", r.Proto)
+	assert.Equal(t, 1, r.ProtoMajor)
+	assert.Equal(t, 1, r.ProtoMinor)
 
 	// Test: Good POST Request with path
 	reader = kgbuf.NewReader(&testutil.ChunkedReader{
@@ -44,9 +48,11 @@ func TestRequestLineParse(t *testing.T) {
 	r, err = ReadRequest(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, "POST", r.RequestLine.Method)
-	assert.Equal(t, "/coffee", r.RequestLine.RequestTarget)
-	assert.Equal(t, "1.1", r.RequestLine.HttpVersion)
+	assert.Equal(t, "POST", r.Method)
+	assert.Equal(t, "/coffee", r.URL.Path)
+	assert.Equal(t, "HTTP/1.1", r.Proto)
+	assert.Equal(t, 1, r.ProtoMajor)
+	assert.Equal(t, 1, r.ProtoMinor)
 
 	// Test: Invalid number of parts in request line
 	reader = kgbuf.NewReader(&testutil.ChunkedReader{
@@ -101,9 +107,8 @@ func TestHeadersParse(t *testing.T) {
 		NumBytesPerRead: 3,
 	})
 	r, err = ReadRequest(reader)
-	require.NoError(t, err)
-	require.NotNil(t, r)
-	assert.Empty(t, r.Headers)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrBadRequest)
 
 	// Test: Duplicate Headers
 	reader = kgbuf.NewReader(&testutil.ChunkedReader{
@@ -227,8 +232,8 @@ func TestReadRequestReadsMultipleRequests(t *testing.T) {
 	r, err := ReadRequest(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, "POST", r.RequestLine.Method)
-	assert.Equal(t, "/one", r.RequestLine.RequestTarget)
+	assert.Equal(t, "POST", r.Method)
+	assert.Equal(t, "/one", r.URL.Path)
 	p := make([]byte, 5)
 	_, err = r.Body.Read(p)
 	require.NoError(t, err)
@@ -241,8 +246,8 @@ func TestReadRequestReadsMultipleRequests(t *testing.T) {
 	r, err = ReadRequest(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, "GET", r.RequestLine.Method)
-	assert.Equal(t, "/two", r.RequestLine.RequestTarget)
+	assert.Equal(t, "GET", r.Method)
+	assert.Equal(t, "/two", r.URL.Path)
 	p = make([]byte, 4)
 	require.NoError(t, err)
 	n, err = r.Body.Read(p)

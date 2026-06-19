@@ -5,20 +5,28 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"unicode"
 
 	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/Kaung-HtetKyaw/kgx/kgurl"
 )
 
 type Request struct {
-	RequestLine    RequestLine
+	Method         string
+	URL            *kgurl.URL
+	Proto          string
+	ProtoMajor     int
+	ProtoMinor     int
 	Headers        Headers
 	Body           io.ReadCloser
 	Trailers       Headers
 	bodyLengthRead int
 	state          RequestState
 }
+
+var ErrBadRequest = errors.New("bad request")
 
 type RequestState string
 
@@ -28,12 +36,6 @@ const (
 	RequestStateParsingHeaders RequestState = "parsingHeaders"
 	RequestStateParsingBody    RequestState = "parsingBody"
 )
-
-type RequestLine struct {
-	HttpVersion   string
-	RequestTarget string
-	Method        string
-}
 
 const (
 	CRLF             = "\r\n"
@@ -54,11 +56,9 @@ func ReadRequest(reader *kgbuf.Reader) (*Request, error) {
 		return nil, fmt.Errorf("incomplete http request at state: %s", request.state)
 	}
 
-	requestLine, _, err := parseRequestLine(line)
-	if err != nil {
+	if _, err := request.parseRequestLine(line); err != nil {
 		return nil, err
 	}
-	request.RequestLine = *requestLine
 	request.state = RequestStateParsingHeaders
 
 	for request.state == RequestStateParsingHeaders {
@@ -82,51 +82,52 @@ func ReadRequest(reader *kgbuf.Reader) (*Request, error) {
 	if err := readTransfer(request, reader); err != nil {
 		return nil, err
 	}
+	if _, ok := request.Headers.Get("host"); !ok {
+		return nil, fmt.Errorf("%w: missing host header", ErrBadRequest)
+	}
 	request.state = RequestStateDone
 
 	return request, nil
 }
 
-func parseRequestLine(data []byte) (*RequestLine, int, error) {
+func (r *Request) parseRequestLine(data []byte) (int, error) {
 	i := bytes.Index(data, []byte(CRLF))
 	if i == -1 {
-		return nil, 0, nil
+		return 0, nil
 	}
 
 	line := string(data[:i])
 
-	requestLine, err := requestLineFromString(line)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// i+2 because after reading request line, there will be \r\n so we skip them and read next line
-	return requestLine, i + 2, nil
-}
-
-func requestLineFromString(str string) (*RequestLine, error) {
-	parts := strings.Fields(str)
+	parts := strings.Fields(line)
 
 	if len(parts) != 3 {
-		return nil, errors.New("Invalid request")
+		return 0, errors.New("Invalid request")
 	}
 
 	target := parts[1]
 	method := parts[0]
 	if !validateRequestMethod(method) {
-		return nil, errors.New("Invalid method")
+		return 0, errors.New("Invalid method")
 	}
 
-	version, err := getHTTPVersion(parts[2])
+	u, err := kgurl.Parse(target)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	return &RequestLine{
-		RequestTarget: target,
-		Method:        method,
-		HttpVersion:   version,
-	}, nil
+	proto, protoMajor, protoMinor, err := parseHTTPVersion(parts[2])
+	if err != nil {
+		return 0, err
+	}
+
+	r.Method = method
+	r.URL = u
+	r.Proto = proto
+	r.ProtoMajor = protoMajor
+	r.ProtoMinor = protoMinor
+
+	// i+2 because after reading request line, there will be \r\n so we skip them and read next line
+	return i + 2, nil
 }
 
 func validateRequestMethod(method string) bool {
@@ -176,4 +177,27 @@ func getHTTPVersion(proto string) (string, error) {
 	}
 
 	return parts[1], nil
+}
+
+func parseHTTPVersion(proto string) (string, int, int, error) {
+	if !validateHTTPVersion(proto) {
+		return "", 0, 0, errors.New("Invalid HTTP Version")
+	}
+
+	parts := strings.Split(proto, "/")
+	version := strings.Split(parts[1], ".")
+	if len(version) != 2 {
+		return "", 0, 0, errors.New("Invalid HTTP Version")
+	}
+
+	major, err := strconv.Atoi(version[0])
+	if err != nil {
+		return "", 0, 0, errors.New("Invalid HTTP Version")
+	}
+	minor, err := strconv.Atoi(version[1])
+	if err != nil {
+		return "", 0, 0, errors.New("Invalid HTTP Version")
+	}
+
+	return proto, major, minor, nil
 }

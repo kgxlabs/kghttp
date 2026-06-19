@@ -41,22 +41,22 @@ func main() {
 }
 
 func handler(w *kghttp.ResponseWriter, req *kghttp.Request) {
-	if strings.HasPrefix(req.RequestLine.RequestTarget, httpBinPath) {
+	if strings.HasPrefix(req.URL.Path, httpBinPath) {
 		httpBinProxyHandler(w, req)
 		return
 	}
 
-	if req.RequestLine.RequestTarget == "/yourproblem" {
+	if req.URL.Path == "/yourproblem" {
 		writeBadRequestError(w)
 		return
 	}
 
-	if req.RequestLine.RequestTarget == "/myproblem" {
+	if req.URL.Path == "/myproblem" {
 		writeInternalServerError(w)
 		return
 	}
 
-	if req.RequestLine.RequestTarget == "/video" {
+	if req.URL.Path == "/video" {
 		writeVideoResponse(w)
 		return
 	}
@@ -65,7 +65,7 @@ func handler(w *kghttp.ResponseWriter, req *kghttp.Request) {
 }
 
 func httpBinProxyHandler(w *kghttp.ResponseWriter, req *kghttp.Request) {
-	path := strings.TrimPrefix(req.RequestLine.RequestTarget, httpBinPath)
+	path := strings.TrimPrefix(req.URL.Path, httpBinPath)
 	url := httpBinURL + path
 	resp, err := http.Get(url)
 	if err != nil {
