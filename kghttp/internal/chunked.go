@@ -191,3 +191,15 @@ func (cr *chunkedReader) Read(p []byte) (n int, err error) {
 
 	return n, cr.err
 }
+
+type chunkedWriter struct {
+	w *kgbuf.Writer
+}
+
+func (cw *chunkedWriter) Write(p []byte) (int, error) {
+	return 0, nil
+}
+
+func (cw *chunkedWriter) Close() error {
+	return nil
+}
