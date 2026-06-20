@@ -3,9 +3,8 @@ package internal
 import (
 	"bytes"
 	"errors"
-	"io"
-
 	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"io"
 )
 
 var (
@@ -193,7 +192,9 @@ func (cr *chunkedReader) Read(p []byte) (n int, err error) {
 }
 
 type chunkedWriter struct {
-	w *kgbuf.Writer
+	w             *kgbuf.Writer
+	ended         bool
+	writeTrailers func(io.Writer) error
 }
 
 func (cw *chunkedWriter) Write(p []byte) (int, error) {
@@ -202,4 +203,8 @@ func (cw *chunkedWriter) Write(p []byte) (int, error) {
 
 func (cw *chunkedWriter) Close() error {
 	return nil
+}
+
+func (cw *chunkedWriter) Flush() error {
+	return cw.w.Flush()
 }

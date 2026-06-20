@@ -114,4 +114,37 @@ func TestCunkedWriterWrite(t *testing.T) {
 	err = cw.Close()
 	require.NoError(t, err)
 	assert.Equal(t, "0\r\n\r\n", ds.String())
+
+	// Valid: Write chunk with trailers
+	ds = &bytes.Buffer{}
+	w = kgbuf.NewWriter(ds)
+	cw = &chunkedWriter{
+		w: w,
+		writeTrailers: func(w io.Writer) error {
+			w.Write([]byte("x-hello: true\r\n"))
+			return nil
+		},
+	}
+	n, err = cw.Write([]byte("hello"))
+	require.NoError(t, err)
+	assert.Equal(t, 5, n)
+	assert.Equal(t, "5\r\nhello\r\n", ds.String())
+	err = cw.Close()
+	require.NoError(t, err)
+	assert.Equal(t, "5\r\nhello\r\n0\r\nx-hello: true\r\n\r\n", ds.String())
+
+	// Valid: Write chunk without trailers
+	ds = &bytes.Buffer{}
+	w = kgbuf.NewWriter(ds)
+	cw = &chunkedWriter{
+		w: w,
+	}
+	n, err = cw.Write([]byte("hello"))
+	require.NoError(t, err)
+	assert.Equal(t, 5, n)
+	assert.Equal(t, "5\r\nhello\r\n", ds.String())
+	err = cw.Close()
+	require.NoError(t, err)
+	assert.Equal(t, "5\r\nhello\r\n0\r\n\r\n", ds.String())
+
 }
