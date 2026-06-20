@@ -161,24 +161,6 @@ func validateHTTPVersion(proto string) bool {
 	return true
 }
 
-func getHTTPVersion(proto string) (string, error) {
-	if !validateHTTPVersion(proto) {
-		return "", errors.New("Invalid HTTP Version")
-	}
-
-	parts := strings.Split(proto, "/")
-
-	if parts[0] != "HTTP" {
-		return "", errors.New("Invalid HTTP Version")
-	}
-
-	if parts[1] != "1.1" {
-		return "", errors.New("Invalid HTTP Version")
-	}
-
-	return parts[1], nil
-}
-
 func parseHTTPVersion(proto string) (string, int, int, error) {
 	if !validateHTTPVersion(proto) {
 		return "", 0, 0, errors.New("Invalid HTTP Version")

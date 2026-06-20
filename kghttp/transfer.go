@@ -120,9 +120,7 @@ func transferFields(r *kgbuf.Reader, msg any) error {
 		default:
 			return errors.New("invalid message type")
 		}
-
 	}
-
 }
 
 func (br *bodyReader) Read(p []byte) (int, error) {
@@ -160,9 +158,5 @@ func (br *bodyReader) Read(p []byte) (int, error) {
 }
 
 func (br *bodyReader) Close() error {
-	return nil
-}
-
-func (br *bodyReader) readTrailers() error {
 	return nil
 }
