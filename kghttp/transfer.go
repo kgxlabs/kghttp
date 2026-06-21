@@ -26,7 +26,7 @@ func readCloser(r *kgbuf.Reader, headers Headers, msg any) (io.ReadCloser, error
 	if encoding, ok := headers.Get("transfer-encoding"); ok {
 		if encoding == "chunked" {
 			return &bodyReader{
-				src:     internal.NewChunkedReader(r),
+				src:     NewChunkedReader(r),
 				r:       r,
 				msg:     msg,
 				chunked: true,
@@ -159,4 +159,60 @@ func (br *bodyReader) Read(p []byte) (int, error) {
 
 func (br *bodyReader) Close() error {
 	return nil
+}
+
+type bodyWriter struct {
+	src io.WriteCloser
+	w   *kgbuf.Writer
+}
+
+func (bw *bodyWriter) Write(p []byte) (int, error) {
+	return bw.src.Write(p)
+}
+
+func (bw *bodyWriter) Close() error {
+	return bw.src.Close()
+}
+
+type writeTransferCfg struct {
+	writer   *kgbuf.Writer
+	headers  func() Headers
+	trailers func() Headers
+}
+
+func writeTransfer(cfg writeTransferCfg) (io.WriteCloser, error) {
+	hs := cfg.headers()
+	encoding, ok := hs.Get("transfer-encoding")
+
+	if ok {
+		if encoding == "chunked" {
+			return &bodyWriter{
+				src: NewChunkedWriter(cfg.writer, cfg.trailers),
+				w:   cfg.writer,
+			}, nil
+		}
+	}
+
+	contentLenStr, ok := hs.Get("content-length")
+	if !ok {
+		return &bodyWriter{
+			src: &internal.NoBody,
+		}, nil
+	}
+
+	contentLen, err := strconv.Atoi(contentLenStr)
+	if err != nil {
+		return nil, errors.New("malformed content len")
+	}
+
+	if contentLen == 0 {
+		return &bodyWriter{
+			src: &internal.NoBody,
+		}, nil
+	}
+
+	return &bodyWriter{
+		src: NewFixedWriter(cfg.writer, cfg.headers),
+		w:   cfg.writer,
+	}, nil
 }

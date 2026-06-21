@@ -38,7 +38,7 @@ This project exists to understand HTTP on top of TCP—not to replace `net/http`
 - **Message parsing** — incremental reads, request/status lines, headers, and transfer-aware body readers
 - **Response serialization** — status line, header blocks, body writes
 - **Persistent server connections** — repeated request parsing on the same accepted socket
-- **Chunked transfer encoding** — chunked body reads plus `WriteChunkedBody` / `WriteChunkedBodyDone`
+- **Chunked transfer encoding** — chunked body reads plus response writes that frame chunks and finish trailers when the handler returns
 - **Trailers** — trailer headers after the final chunked chunk
 - **Reverse proxying** — demonstrated in the example server (stream upstream, re-encode as chunked + trailers)
 
@@ -82,7 +82,7 @@ func main() {
 			w.Headers().Set("content-length", strconv.Itoa(len(body)))
 			w.Headers().Set("connection", "close")
 			w.WriteHeaders(kghttp.StatusOK)
-			w.WriteBody(body)
+			w.Write(body)
 		},
 	}
 
@@ -123,15 +123,15 @@ curl -v http://localhost:8080/
 | `ReadResponse(*kgbuf.Reader, *Request)` | Parse an HTTP/1.1 response from a buffered reader |
 | `ResponseWriter` | Build and send the HTTP response |
 | `ResponseWriter.WriteHeaders(StatusCode)` | Send status line + headers |
-| `ResponseWriter.WriteBody([]byte)` | Send a body after headers (fixed length) |
-| `ResponseWriter.WriteChunkedBody` / `WriteChunkedBodyDone` | Chunked transfer encoding + trailers |
+| `ResponseWriter.Write([]byte)` | Send body bytes after headers; auto-sends `200 OK` headers if needed |
+| `ResponseWriter.Trailers()` | Mutable trailer header map for chunked responses |
 | `Headers` | Case-insensitive header map with `Get`, `Set`, `Remove`, `Parse` |
 
 Supported status codes in the writer today: **200**, **400**, and **500** (see `response.go`).
 
 ## Example server
 
-See [`examples/httpserver/main.go`](../examples/httpserver/main.go) for routing, HTML/error responses, chunked video, and the httpbin reverse proxy.
+See [`examples/httpserver/main.go`](../examples/httpserver/main.go) for routing, HTML/error responses, chunked video, and the httpbin reverse proxy. Handlers write body bytes with `ResponseWriter.Write`; the server finalizes the selected transfer writer after the handler returns.
 
 From the repo root:
 
@@ -179,13 +179,16 @@ kghttp/
 ├── server_test.go      # End-to-end ListenAndServe test
 ├── request.go          # HTTP/1.1 request parser (streaming)
 ├── request_test.go     # Request line, headers, body tests
-├── response.go         # ResponseWriter, status codes, chunked + trailers
+├── response.go         # Response parser, ResponseWriter, status codes
 ├── response_test.go    # Response writer, chunked, and trailer tests
 ├── transfer.go         # Shared request/response body reader selection
 ├── transfer_test.go    # Content-Length, chunked, and trailer body reader tests
+├── fixed.go            # Fixed-length response body writer
+├── chunked.go          # Chunked transfer body reader/writer
+├── fixed_test.go       # Fixed-length writer tests
+├── chunked_test.go     # Chunked reader/writer tests
 ├── internal/
-│   ├── chunked.go      # Chunked transfer body reader
-│   └── nobody.go       # Empty body reader
+│   └── nobody.go       # Empty body reader/writer
 ├── headers.go          # Header map and field-line parsing
 └── headers_test.go     # Standalone header field-line tests
 ```
@@ -196,11 +199,13 @@ Each accepted TCP connection is handled like this:
 
 1. The server creates a buffered reader for the accepted connection.
 2. It sets a read deadline when `IdleConnTimeOut` is greater than zero.
-3. It reads one HTTP request, runs your handler, and writes the response.
+3. It reads one HTTP request, runs your handler, and finalizes the response body writer.
 4. It repeats for the next request on the same connection unless either the request or response has `Connection: close`.
 5. The connection is closed when the loop exits because of `Connection: close`, client disconnect, read timeout, or a request parse error.
 
-Handlers own the response framing. For fixed-length responses, set `Content-Length` before `WriteHeaders`; for streamed responses, set `Transfer-Encoding: chunked`, write chunks, then call `WriteChunkedBodyDone`.
+Handlers own the response framing. For fixed-length responses, set `Content-Length` before `WriteHeaders`, then call `Write` with exactly that many bytes. For streamed responses, set `Transfer-Encoding: chunked`, call `Write` for each body chunk, and optionally populate `Trailers()` before the handler returns. The server writes the terminating chunk and trailers during response finalization.
+
+If `Write` is called before `WriteHeaders`, it sends a `200 OK` header block first. If neither `Content-Length` nor `Transfer-Encoding: chunked` is set, the response body writer is empty and body bytes are ignored.
 
 Parsed request and response bodies are exposed as `io.ReadCloser`. If `Transfer-Encoding: chunked` is present, reads decode chunks and parse trailers after the terminating `0` chunk. If `Content-Length` is present, reads are limited to that length and return `io.ErrUnexpectedEOF` when the stream ends early. If neither header is present, the body is empty.
 
@@ -212,7 +217,7 @@ Parsed request and response bodies are exposed as `io.ReadCloser`. If `Transfer-
 - **No HTTP client** — upstream calls in the demo use Go's `net/http` client
 - **Limited transfer handling** — close-delimited bodies, status/method-specific no-body rules, and chunk extensions are not implemented yet
 - **Limited status codes** — writer reason phrases for 200, 400, and 500 only
-- **Handler-owned responses** — the library does not set `Content-Length` or pick a status for you; call `WriteHeaders` then write the body (or chunks) in order
+- **Handler-owned responses** — the library does not infer `Content-Length` or `Transfer-Encoding`; set response framing headers before `WriteHeaders`, then write the body in order
 - **No in-flight drain on shutdown** — `Close()` closes the listener; active handlers are not joined
 
 ## License

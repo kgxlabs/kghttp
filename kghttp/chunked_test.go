@@ -1,4 +1,4 @@
-package internal
+package kghttp
 
 import (
 	"bytes"
@@ -80,10 +80,10 @@ func TestCunkedWriterWrite(t *testing.T) {
 	err = cw.Flush()
 	require.NoError(t, err)
 	assert.Equal(t, 11, n)
-	assert.Contains(t, ds.String(), "11\r\nhello world\r\n")
+	assert.Contains(t, ds.String(), "b\r\nhello world\r\n")
 	err = cw.Close()
 	require.NoError(t, err)
-	assert.Contains(t, ds.String(), "11\r\nhello world\r\n0\r\n\r\n")
+	assert.Contains(t, ds.String(), "b\r\nhello world\r\n0\r\n\r\n")
 
 	// Valid: Write multiple complete chunks
 	ds = &bytes.Buffer{}
@@ -128,9 +128,10 @@ func TestCunkedWriterWrite(t *testing.T) {
 	w = kgbuf.NewWriter(ds)
 	cw = &chunkedWriter{
 		w: w,
-		writeTrailers: func(w io.Writer) error {
-			w.Write([]byte("x-hello: true\r\n"))
-			return nil
+		trailers: func() Headers {
+			return Headers{
+				"x-hello": "true",
+			}
 		},
 	}
 	n, err = cw.Write([]byte("hello"))

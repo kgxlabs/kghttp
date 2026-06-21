@@ -1,4 +1,4 @@
-package internal
+package kghttp
 
 import (
 	"bytes"
@@ -193,18 +193,33 @@ func (cr *chunkedReader) Read(p []byte) (n int, err error) {
 }
 
 type chunkedWriter struct {
-	w             *kgbuf.Writer
-	ended         bool
-	writeTrailers func(io.Writer) error
+	w        *kgbuf.Writer
+	ended    bool
+	headers  func() Headers
+	trailers func() Headers
 }
 
 var (
 	ErrChunkedWriterClosed = errors.New("kghttp: err chunked writer closed")
 )
 
+func NewChunkedWriter(w io.Writer, trailers func() Headers) *chunkedWriter {
+	bw, ok := w.(*kgbuf.Writer)
+	if !ok {
+		bw = kgbuf.NewWriter(w)
+	}
+
+	return &chunkedWriter{
+		w:        bw,
+		trailers: trailers,
+	}
+}
+
 func serializeChunkData(p []byte) []byte {
-	h := []byte(strconv.Itoa(len(p)) + "\r\n")
-	c := append(p, []byte("\r\n")...)
+	h := []byte(strconv.FormatInt(int64(len(p)), 16) + "\r\n")
+	c := make([]byte, 0, len(p)+len(CRLF))
+	c = append(c, p...)
+	c = append(c, []byte(CRLF)...)
 
 	return append(h, c...)
 }
@@ -237,10 +252,8 @@ func (cw *chunkedWriter) Close() error {
 		return err
 	}
 
-	if cw.writeTrailers != nil {
-		if err := cw.writeTrailers(cw.w); err != nil {
-			return err
-		}
+	if err := cw.writeTrailers(); err != nil {
+		return err
 	}
 
 	if _, err := cw.w.Write([]byte("\r\n")); err != nil {
@@ -252,4 +265,20 @@ func (cw *chunkedWriter) Close() error {
 
 func (cw *chunkedWriter) Flush() error {
 	return cw.w.Flush()
+}
+
+func (cw *chunkedWriter) writeTrailers() error {
+	if cw.trailers == nil {
+		return nil
+	}
+
+	ts := cw.trailers()
+
+	for name, value := range ts {
+		if _, err := cw.w.Write([]byte(name + ": " + value + "\r\n")); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

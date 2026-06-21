@@ -19,13 +19,6 @@ const (
 	StatusInternalServerError StatusCode = 500
 )
 
-type ResponseWriter struct {
-	writer      io.Writer
-	headers     Headers
-	trailers    Headers
-	writerState writerState
-}
-
 type Response struct {
 	StatusLine StatusLine
 	Headers    Headers
@@ -56,13 +49,6 @@ const (
 	writerStateWritingBody     writerState = "writingBody"
 	writerStateWritingTrailers writerState = "writingTrailers"
 )
-
-func NewWriter(writer io.Writer) *ResponseWriter {
-	return &ResponseWriter{
-		writer:      writer,
-		writerState: writerStateWritingHeaders,
-	}
-}
 
 func ReadResponse(reader *kgbuf.Reader, req *Request) (*Response, error) {
 	response := &Response{
@@ -156,98 +142,107 @@ func statusLineFromString(str string) (*StatusLine, error) {
 	}, nil
 }
 
-func (w *ResponseWriter) Headers() Headers {
-	if w.headers == nil {
-		w.headers = make(Headers)
-	}
-	return w.headers
+type ResponseWriter struct {
+	w           io.WriteCloser
+	bw          io.WriteCloser
+	headers     Headers
+	trailers    Headers
+	writerState writerState
 }
 
-func (w *ResponseWriter) WriteHeaders(statusCode StatusCode) error {
-	if w.writerState != writerStateWritingHeaders {
-		return fmt.Errorf("cannot write headers in state: %s", w.writerState)
+func NewWriter(w io.WriteCloser) *ResponseWriter {
+	return &ResponseWriter{
+		w:           w,
+		writerState: writerStateWritingHeaders,
+	}
+}
+
+func (rw *ResponseWriter) Headers() Headers {
+	if rw.headers == nil {
+		rw.headers = make(Headers)
+	}
+	return rw.headers
+}
+
+func (rw *ResponseWriter) WriteHeaders(statusCode StatusCode) error {
+	if rw.writerState != writerStateWritingHeaders {
+		return fmt.Errorf("cannot write headers in state: %s", rw.writerState)
 	}
 
 	statusLine := serializeStatusLine(statusCode)
 
-	if _, err := w.writer.Write(statusLine); err != nil {
+	if _, err := rw.w.Write(statusLine); err != nil {
 		return err
 	}
 
-	hs, err := serializeHeaders(w.headers)
+	hs, err := serializeHeaders(rw.headers)
 	if err != nil {
 		return err
 	}
 
-	if _, err := w.writer.Write(hs); err != nil {
+	if _, err := rw.w.Write(hs); err != nil {
 		return err
 	}
 
-	w.writerState = writerStateWritingBody
+	rw.writerState = writerStateWritingBody
+
+	cfg := writeTransferCfg{
+		writer: kgbuf.NewWriter(rw.w),
+		headers: func() Headers {
+			return rw.Headers()
+		},
+		trailers: func() Headers {
+			return rw.Trailers()
+		},
+	}
+	tw, err := writeTransfer(cfg)
+	if err != nil {
+		return err
+	}
+
+	rw.bw = tw
 
 	return nil
 }
 
-func (w *ResponseWriter) WriteBody(data []byte) (int, error) {
-	if w.writerState != writerStateWritingBody {
-		return 0, fmt.Errorf("cannot write body at state: %s", w.writerState)
+func (rw *ResponseWriter) Write(p []byte) (int, error) {
+	if rw.writerState == writerStateWritingHeaders {
+		if err := rw.WriteHeaders(StatusOK); err != nil {
+			return 0, err
+		}
+
+		rw.writerState = writerStateWritingBody
 	}
 
-	return w.writer.Write(data)
+	return rw.bw.Write(p)
 }
 
-func (w *ResponseWriter) WriteChunkedBody(data []byte) (int, error) {
-	if w.writerState != writerStateWritingBody {
-		return 0, fmt.Errorf("cannot write body in state: %s", w.writerState)
+func (rw *ResponseWriter) Trailers() Headers {
+	if rw.trailers == nil {
+		rw.trailers = make(Headers)
 	}
 
-	dataLen := len(data)
-	hexLen := []byte(fmt.Sprintf("%x\r\n", dataLen))
-	totalSize := len(hexLen) + dataLen + 2
-
-	chunkedData := make([]byte, 0, totalSize)
-	chunkedData = append(chunkedData, hexLen...)
-	if dataLen > 0 {
-		chunkedData = append(chunkedData, data...)
-		chunkedData = append(chunkedData, []byte("\r\n")...)
-	}
-
-	n, err := w.writer.Write(chunkedData)
-	return n, err
+	return rw.trailers
 }
 
-func (w *ResponseWriter) WriteChunkedBodyDone() (int, error) {
-	n, err := w.WriteChunkedBody([]byte{})
-	if err != nil {
-		return 0, err
-	}
-
-	if err = w.writeTrailers(); err != nil {
-		return 0, err
-	}
-
-	return n, nil
-}
-
-func (w *ResponseWriter) Trailers() Headers {
-	if w.trailers == nil {
-		w.trailers = make(Headers)
-	}
-
-	return w.trailers
-}
-
-func (w *ResponseWriter) writeTrailers() error {
-	ts, err := serializeHeaders(w.trailers)
+func (rw *ResponseWriter) writeTrailers() error {
+	ts, err := serializeHeaders(rw.trailers)
 	if err != nil {
 		return err
 	}
 
-	if _, err := w.writer.Write(ts); err != nil {
+	if _, err := rw.w.Write(ts); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (rw *ResponseWriter) finish() error {
+	if rw.bw == nil {
+		return fmt.Errorf("cannot finish response in state: %s", rw.writerState)
+	}
+	return rw.bw.Close()
 }
 
 func serializeHeaders(headers Headers) ([]byte, error) {

@@ -75,6 +75,8 @@ func (s *Server) handle(conn net.Conn) {
 	r := kgbuf.NewReader(conn)
 
 	for {
+		// TODO: pass buffered writer to NewWriter
+		// and rename NewWriter to NewResponseWriter
 		rw := NewWriter(conn)
 
 		if s.IdleConnTimeOut > 0 {
@@ -101,7 +103,8 @@ func (s *Server) handle(conn net.Conn) {
 				rw.Headers().Set("content-type", "text/plain")
 				rw.Headers().Set("connection", "close")
 				rw.WriteHeaders(StatusBadRequest)
-				rw.WriteBody(body)
+				rw.Write(body)
+				rw.finish()
 				return
 			}
 
@@ -110,11 +113,16 @@ func (s *Server) handle(conn net.Conn) {
 			rw.Headers().Set("content-type", "text/plain")
 			rw.Headers().Set("connection", "close")
 			rw.WriteHeaders(StatusInternalServerError)
-			rw.WriteBody(body)
+			rw.Write(body)
+			rw.finish()
 			return
 		}
 
 		s.Handler(rw, req)
+		if err = rw.finish(); err != nil {
+			return
+		}
+
 		c, _ := rw.Headers().Get("connection")
 		if c == "close" {
 			return
