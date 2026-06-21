@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"strconv"
+	"sync"
 
 	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
 	"github.com/Kaung-HtetKyaw/kgx/kghttp/internal"
@@ -14,20 +15,21 @@ type bodyReader struct {
 	src io.Reader
 	r   *kgbuf.Reader
 	// ref to a message either *Request or *Response
-	msg             any
-	sawEOF          bool
-	closed          bool
-	earlyClosed     bool
-	chunked         bool
-	remaining       int
-	onHitEOForClose func()
+	msg         any
+	sawEOF      bool
+	closed      bool
+	earlyClosed bool
+	chunked     bool
+	remaining   int
+	once        sync.Once
+	onDone      func(error)
 }
 
 func readCloser(r *kgbuf.Reader, headers Headers, msg any) (io.ReadCloser, error) {
 	if encoding, ok := headers.Get("transfer-encoding"); ok {
 		if encoding == "chunked" {
 			return &bodyReader{
-				src:     internal.NewChunkedReader(r),
+				src:     NewChunkedReader(r),
 				r:       r,
 				msg:     msg,
 				chunked: true,
@@ -121,18 +123,23 @@ func transferFields(r *kgbuf.Reader, msg any) error {
 		default:
 			return errors.New("invalid message type")
 		}
-
 	}
-
 }
 
 func (br *bodyReader) Read(p []byte) (nn int, err error) {
+
+	defer func() {
+		br.finish(err)
+	}()
+
 	if br.closed {
 		if br.earlyClosed || !br.sawEOF {
 			err = io.ErrUnexpectedEOF
+			return
 		}
 
 		err = io.EOF
+		return
 	} else {
 		nn, err = br.src.Read(p)
 
@@ -145,6 +152,7 @@ func (br *bodyReader) Read(p []byte) (nn int, err error) {
 			if br.remaining > 0 {
 				br.earlyClosed = true
 				err = io.ErrUnexpectedEOF
+				return
 			}
 
 			br.sawEOF = true
@@ -153,26 +161,79 @@ func (br *bodyReader) Read(p []byte) (nn int, err error) {
 			if br.chunked {
 				if trailerErr := transferFields(br.r, br.msg); trailerErr != nil {
 					err = trailerErr
+					return
 				}
 			}
 		}
-
-	}
-
-	if err != nil {
-		br.triggerEOFSignal()
 	}
 
 	return nn, err
 }
 
 func (br *bodyReader) Close() error {
-	br.onHitEOForClose()
 	return nil
 }
 
-func (br *bodyReader) triggerEOFSignal() {
-	if br.onHitEOForClose != nil {
-		br.onHitEOForClose()
+func (br *bodyReader) finish(err error) {
+	br.once.Do(func() {
+		if br.onDone != nil {
+			br.onDone(err)
+		}
+	})
+}
+
+type bodyWriter struct {
+	src io.WriteCloser
+	w   *kgbuf.Writer
+}
+
+func (bw *bodyWriter) Write(p []byte) (int, error) {
+	return bw.src.Write(p)
+}
+
+func (bw *bodyWriter) Close() error {
+	return bw.src.Close()
+}
+
+type writeTransferCfg struct {
+	writer   *kgbuf.Writer
+	headers  func() Headers
+	trailers func() Headers
+}
+
+func writeTransfer(cfg writeTransferCfg) (io.WriteCloser, error) {
+	hs := cfg.headers()
+	encoding, ok := hs.Get("transfer-encoding")
+
+	if ok {
+		if encoding == "chunked" {
+			return &bodyWriter{
+				src: NewChunkedWriter(cfg.writer, cfg.trailers),
+				w:   cfg.writer,
+			}, nil
+		}
 	}
+
+	contentLenStr, ok := hs.Get("content-length")
+	if !ok {
+		return &bodyWriter{
+			src: &internal.NoBody,
+		}, nil
+	}
+
+	contentLen, err := strconv.Atoi(contentLenStr)
+	if err != nil {
+		return nil, errors.New("malformed content len")
+	}
+
+	if contentLen == 0 {
+		return &bodyWriter{
+			src: &internal.NoBody,
+		}, nil
+	}
+
+	return &bodyWriter{
+		src: NewFixedWriter(cfg.writer, cfg.headers),
+		w:   cfg.writer,
+	}, nil
 }

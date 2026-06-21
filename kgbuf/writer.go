@@ -35,6 +35,7 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 			nn, err = w.writer.Write(p)
 		} else {
 			nn = copy(w.buf[w.n:], p[n:])
+			w.n += nn
 			err = w.Flush()
 		}
 
@@ -45,7 +46,6 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 	if err != nil {
 		return n, err
 	}
-
 	nn := copy(w.buf[w.n:], p)
 	n += nn
 	w.n += nn
@@ -57,8 +57,7 @@ func (w *Writer) Flush() error {
 		return nil
 	}
 
-	n, err := w.writer.Write(w.buf)
-
+	n, err := w.writer.Write(w.buf[:w.n])
 	if n > 0 {
 		w.n -= n
 	}

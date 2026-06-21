@@ -2,7 +2,6 @@ package kghttp
 
 import (
 	"io"
-	"net"
 	"strconv"
 	"testing"
 	"time"
@@ -14,26 +13,24 @@ import (
 
 func TestTransportRoundTrip(t *testing.T) {
 	// Valid: GET request
-	ln, err := net.Listen("tcp", "127.0.0.1:80")
-	require.NoError(t, err)
-
 	server := &Server{
+		Addr: "127.0.0.1:0",
 		Handler: func(w *ResponseWriter, req *Request) {
 			body := "Hello World"
 			data := []byte(body)
 			w.Headers().Set("content-length", strconv.Itoa(len(data)))
 			w.Headers().Set("content-type", "text/plain")
 			w.WriteHeaders(200)
-			w.WriteBody(data)
-
+			w.Write(data)
 		},
 		IdleConnTimeOut: 5 * time.Second,
 	}
-	err = server.Serve(ln)
+	err := server.ListenAndServe()
 	require.NoError(t, err)
 	defer server.Close()
 
-	url, err := kgurl.Parse("http://localhost")
+	addr := server.listener.Addr().String()
+	url, err := kgurl.Parse("http://" + addr)
 	require.NoError(t, err)
 	req := &Request{
 		Method:     "GET",
@@ -42,7 +39,7 @@ func TestTransportRoundTrip(t *testing.T) {
 		ProtoMinor: 1,
 		URL:        url,
 		Headers: Headers{
-			"host": "localhost",
+			"host": addr,
 		},
 	}
 

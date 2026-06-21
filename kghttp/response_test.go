@@ -13,17 +13,22 @@ import (
 )
 
 func TestWriteResponseWholeBody(t *testing.T) {
-	// Test Valid Write response
-	resWriter, w := newTestWriter()
+	// Valid: Write response
+	rw, ds := newTestWriter()
 	body := `Hello World`
-	resWriter.Headers().Set("connection", "close")
-	resWriter.WriteHeaders(200)
-	_, err := resWriter.WriteBody([]byte(body))
-	resp := w.Result()
+	rw.Headers().Set("content-length", "11")
+	rw.Headers().Set("connection", "close")
+	err := rw.WriteHeaders(200)
 	require.NoError(t, err)
+	_, err = rw.Write([]byte(body))
+	require.NoError(t, err)
+	err = rw.finish()
+	require.NoError(t, err)
+	resp := ds.Result()
 	require.NotNil(t, resp)
 	assert.Contains(t, resp, "HTTP/1.1 200 OK\r\n")
-	assert.Contains(t, resp, "connection: close\r\n\r\n")
+	assert.Contains(t, resp, "connection: close\r\n")
+	assert.Contains(t, resp, "content-length: 11\r\n")
 	assert.Contains(t, resp, "Hello World")
 }
 
@@ -33,46 +38,67 @@ func TestWriteResponseChunkedWithTrailers(t *testing.T) {
 	// Test Valid Write chunked response with trailer
 	resWriter, w := newTestWriter()
 	resWriter.Headers().Set("connection", "close")
+	resWriter.Headers().Set("transfer-encoding", "chunked")
 	resWriter.Headers().Set("trailer", "x-content-length")
-	resWriter.WriteHeaders(200)
-	n, err := resWriter.WriteChunkedBody(data[:3])
+	err := resWriter.WriteHeaders(200)
 	require.NoError(t, err)
-	assert.Equal(t, 8, n)
+	n, err := resWriter.Write(data[:6])
+	require.NoError(t, err)
+	assert.Equal(t, 6, n)
+	n, err = resWriter.Write(data[6:])
+	require.NoError(t, err)
+	assert.Equal(t, 5, n)
+	resWriter.Trailers().Set("x-content-length", "11")
+	err = resWriter.finish()
+	require.NoError(t, err)
+	assert.Contains(t, w.Result(), "6\r\nHello \r\n5\r\nWorld\r\n0\r\nx-content-length: 11\r\n\r\n")
 
-	resWriter.Trailers().Set("x-content-length", "8")
-	n, err = resWriter.WriteChunkedBodyDone()
-	resp := w.Result()
+	resWriter, w = newTestWriter()
+	resWriter.Headers().Set("connection", "close")
+	resWriter.Headers().Set("transfer-encoding", "chunked")
+	resWriter.Headers().Set("trailer", "x-content-length")
+	err = resWriter.WriteHeaders(200)
+	require.NoError(t, err)
+	n, err = resWriter.Write(data[:3])
 	require.NoError(t, err)
 	assert.Equal(t, 3, n)
+	resWriter.Trailers().Set("x-content-length", "8")
+	err = resWriter.finish()
+	resp := w.Result()
+	require.NoError(t, err)
 	assert.Contains(t, resp, "HTTP/1.1 200 OK\r\n")
 	assert.Contains(t, resp, "connection: close\r\n")
+	assert.Contains(t, resp, "transfer-encoding: chunked\r\n")
 	assert.Contains(t, resp, "trailer: x-content-length\r\n")
 	assert.Contains(t, resp, "3\r\nHel\r\n0\r\n")
 	assert.Contains(t, resp, "x-content-length: 8\r\n\r\n")
 
 	// Valid Write chunked response without headers
 	resWriter, w = newTestWriter()
-	resWriter.WriteHeaders(200)
-	n, err = resWriter.WriteChunkedBody(data[:3])
+	resWriter.Headers().Set("transfer-encoding", "chunked")
+	err = resWriter.WriteHeaders(200)
 	require.NoError(t, err)
-	assert.Equal(t, 8, n)
-	n, err = resWriter.WriteChunkedBodyDone()
-	resp = w.Result()
+	n, err = resWriter.Write(data[:3])
 	require.NoError(t, err)
 	assert.Equal(t, 3, n)
-	assert.Contains(t, resp, "HTTP/1.1 200 OK\r\n\r\n")
+	err = resWriter.finish()
+	resp = w.Result()
+	require.NoError(t, err)
+	assert.Contains(t, resp, "HTTP/1.1 200 OK\r\n")
+	assert.Contains(t, resp, "transfer-encoding: chunked\r\n")
+	assert.Contains(t, resp, "3\r\nHel\r\n0\r\n\r\n")
 
-	// Invalid Write chunked body before headers
+	// Valid Write auto-sends headers before the body
 	resWriter, _ = newTestWriter()
-	n, err = resWriter.WriteChunkedBody(data[:3])
-	require.Error(t, err)
-	assert.Equal(t, 0, n)
+	resWriter.Headers().Set("content-length", "3")
+	n, err = resWriter.Write(data[:3])
+	require.NoError(t, err)
+	assert.Equal(t, 3, n)
 
-	// Invalid Write done before headers
+	// Invalid finish before headers
 	resWriter, _ = newTestWriter()
-	n, err = resWriter.WriteChunkedBodyDone()
+	err = resWriter.finish()
 	require.Error(t, err)
-	assert.Equal(t, 0, n)
 }
 
 func TestReadResponseStatusLine(t *testing.T) {
@@ -239,17 +265,22 @@ func TestReadResponseReadsMultipleResponses(t *testing.T) {
 }
 
 func newTestWriter() (*ResponseWriter, *memWriter) {
-	w := &memWriter{}
-	return NewWriter(w), w
+	ds := &memWriter{}
+	return NewWriter(ds), ds
 }
 
 type memWriter struct {
-	buf bytes.Buffer
+	buf  bytes.Buffer
+	Body io.ReadCloser
 }
 
 func (w *memWriter) Write(p []byte) (int, error) {
 	n, err := w.buf.Write(p)
 	return n, err
+}
+
+func (w *memWriter) Close() error {
+	return nil
 }
 
 func (w *memWriter) Result() string {

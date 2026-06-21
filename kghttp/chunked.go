@@ -1,11 +1,11 @@
-package internal
+package kghttp
 
 import (
 	"bytes"
 	"errors"
-	"io"
-
 	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"io"
+	"strconv"
 )
 
 var (
@@ -190,4 +190,95 @@ func (cr *chunkedReader) Read(p []byte) (n int, err error) {
 	}
 
 	return n, cr.err
+}
+
+type chunkedWriter struct {
+	w        *kgbuf.Writer
+	ended    bool
+	headers  func() Headers
+	trailers func() Headers
+}
+
+var (
+	ErrChunkedWriterClosed = errors.New("kghttp: err chunked writer closed")
+)
+
+func NewChunkedWriter(w io.Writer, trailers func() Headers) *chunkedWriter {
+	bw, ok := w.(*kgbuf.Writer)
+	if !ok {
+		bw = kgbuf.NewWriter(w)
+	}
+
+	return &chunkedWriter{
+		w:        bw,
+		trailers: trailers,
+	}
+}
+
+func serializeChunkData(p []byte) []byte {
+	h := []byte(strconv.FormatInt(int64(len(p)), 16) + "\r\n")
+	c := make([]byte, 0, len(p)+len(CRLF))
+	c = append(c, p...)
+	c = append(c, []byte(CRLF)...)
+
+	return append(h, c...)
+}
+
+func (cw *chunkedWriter) Write(p []byte) (int, error) {
+	if cw.ended {
+		return 0, ErrChunkedWriterClosed
+	}
+
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	data := serializeChunkData(p)
+	_, err := cw.w.Write(data)
+
+	return len(p), err
+}
+
+func (cw *chunkedWriter) Close() error {
+	if cw.ended {
+		return ErrChunkedWriterClosed
+	}
+
+	defer func() {
+		cw.ended = true
+	}()
+
+	if _, err := cw.w.Write([]byte("0\r\n")); err != nil {
+		return err
+	}
+
+	if err := cw.writeTrailers(); err != nil {
+		return err
+	}
+
+	if _, err := cw.w.Write([]byte("\r\n")); err != nil {
+		return err
+	}
+
+	return cw.Flush()
+}
+
+func (cw *chunkedWriter) Flush() error {
+	return cw.w.Flush()
+}
+
+func (cw *chunkedWriter) writeTrailers() error {
+	if cw.trailers == nil {
+		return nil
+	}
+
+	ts := cw.trailers()
+
+	for name, value := range ts {
+		if _, err := cw.w.Write([]byte(name + ": " + value + "\r\n")); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

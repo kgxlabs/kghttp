@@ -3,6 +3,7 @@ package kghttp
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 
@@ -45,8 +46,11 @@ func (t *Transport) getConn(key string, req *Request) (*persistConn, error) {
 		t.idle = make(map[string][]*persistConn)
 	}
 	list, ok := t.idle[key]
+	if !ok {
+		t.idle[key] = []*persistConn{}
+	}
 
-	if ok && len(list) > 0 {
+	if len(list) > 0 {
 		pconn := list[len(list)-1]
 		t.idle[key] = list[:len(list)-1]
 
@@ -79,29 +83,87 @@ func (t *Transport) getConn(key string, req *Request) (*persistConn, error) {
 	return pconn, nil
 }
 
-func (t *Transport) putBackToIdle() error {
+func (t *Transport) putConnBackToIdle(key string, pc *persistConn) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.idle == nil {
+		return errors.New("no connection pool")
+	}
+
+	if _, ok := t.idle[key]; !ok {
+		return errors.New("connection pool not initialized")
+	}
+
+	t.idle[key] = append(t.idle[key], pc)
+
 	return nil
 }
 
 func (t *Transport) RoundTrip(req *Request) (*Response, error) {
 	key := canonicalKey(req)
-	pconn, err := t.getConn(key, req)
+	pc, err := t.getConn(key, req)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := pconn.writeRequest(req); err != nil {
-		pconn.conn.Close()
+	// TODO: can this error be an EOF here ??????
+	if err := pc.writeRequest(req); err != nil {
+		pc.conn.Close()
 		return nil, err
 	}
 
-	_, err = pconn.readResponse(req)
+	resp, err := pc.readResponse(req)
 	if err != nil {
-		pconn.conn.Close()
+		pc.conn.Close()
 		return nil, err
 	}
 
-	return nil, nil
+	resp.Body = &bodyReader{
+		src:    resp.Body,
+		onDone: t.onBodyDone(req, resp, key, pc),
+	}
+
+	return resp, nil
+}
+
+func (t *Transport) onBodyDone(req *Request, resp *Response, key string, pc *persistConn) func(error) {
+	return func(err error) {
+		if err != nil && err != io.EOF {
+			pc.conn.Close()
+			return
+		}
+
+		ch := connectionHeader(req, resp)
+		if ch == "close" {
+			pc.conn.Close()
+			return
+		}
+
+		t.putConnBackToIdle(key, pc)
+	}
+}
+
+func connectionHeader(req *Request, resp *Response) string {
+	reqCh := ""
+	respCh := ""
+	if req.Headers != nil {
+		reqCh, _ = req.Headers.Get("connection")
+	}
+
+	if resp.Headers != nil {
+		respCh, _ = resp.Headers.Get("connection")
+	}
+
+	if reqCh == "close" || respCh == "close" {
+		return "close"
+	}
+
+	if reqCh == "" && respCh == "" {
+		return "keep-alive"
+	}
+
+	return "keep-alive"
 }
 
 func canonicalKey(req *Request) string {
