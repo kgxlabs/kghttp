@@ -22,8 +22,7 @@ func TestListenAndServe(t *testing.T) {
 			w.Headers().Set("content-length", strconv.Itoa(len(data)))
 			w.Headers().Set("content-type", "text/plain")
 			w.WriteHeaders(200)
-			w.WriteBody(data)
-
+			w.Write(data)
 		},
 		IdleConnTimeOut: 5 * time.Second,
 	}

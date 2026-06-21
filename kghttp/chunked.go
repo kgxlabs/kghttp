@@ -216,8 +216,10 @@ func NewChunkedWriter(w io.Writer, trailers func() Headers) *chunkedWriter {
 }
 
 func serializeChunkData(p []byte) []byte {
-	h := []byte(strconv.Itoa(len(p)) + "\r\n")
-	c := append(p, []byte("\r\n")...)
+	h := []byte(strconv.FormatInt(int64(len(p)), 16) + "\r\n")
+	c := make([]byte, 0, len(p)+len(CRLF))
+	c = append(c, p...)
+	c = append(c, []byte(CRLF)...)
 
 	return append(h, c...)
 }

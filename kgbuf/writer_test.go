@@ -36,3 +36,20 @@ func TestWriterWrite(t *testing.T) {
 	err = w.Flush()
 	require.NoError(t, err)
 }
+
+func TestWriterWriteFlushesBytesCopiedToFillBuffer(t *testing.T) {
+	ds := &bytes.Buffer{}
+	w := NewWriterSize(ds, 10)
+
+	n, err := w.Write([]byte("1234567"))
+	require.NoError(t, err)
+	assert.Equal(t, 7, n)
+
+	n, err = w.Write([]byte("abcdef"))
+	require.NoError(t, err)
+	assert.Equal(t, 6, n)
+
+	err = w.Flush()
+	require.NoError(t, err)
+	assert.Equal(t, "1234567abcdef", ds.String())
+}

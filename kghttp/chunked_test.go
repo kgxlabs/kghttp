@@ -80,10 +80,10 @@ func TestCunkedWriterWrite(t *testing.T) {
 	err = cw.Flush()
 	require.NoError(t, err)
 	assert.Equal(t, 11, n)
-	assert.Contains(t, ds.String(), "11\r\nhello world\r\n")
+	assert.Contains(t, ds.String(), "b\r\nhello world\r\n")
 	err = cw.Close()
 	require.NoError(t, err)
-	assert.Contains(t, ds.String(), "11\r\nhello world\r\n0\r\n\r\n")
+	assert.Contains(t, ds.String(), "b\r\nhello world\r\n0\r\n\r\n")
 
 	// Valid: Write multiple complete chunks
 	ds = &bytes.Buffer{}

@@ -97,7 +97,7 @@ func httpBinProxyHandler(w *kghttp.ResponseWriter, req *kghttp.Request) {
 			break
 		}
 
-		if _, err := w.WriteChunkedBody(buf[:n]); err != nil {
+		if _, err := w.Write(buf[:n]); err != nil {
 			log.Printf("error writing chunked body: %v", err)
 			break
 		}
@@ -108,11 +108,6 @@ func httpBinProxyHandler(w *kghttp.ResponseWriter, req *kghttp.Request) {
 
 	w.Trailers().Set("X-Content-SHA256", fmt.Sprintf("%x", h.Sum(nil)))
 	w.Trailers().Set("X-Content-Length", strconv.Itoa(totalN))
-
-	if _, err := w.WriteChunkedBodyDone(); err != nil {
-		log.Printf("error writing chunked body done: %v", err)
-		return
-	}
 }
 
 func writeVideoResponse(w *kghttp.ResponseWriter) {
@@ -136,7 +131,7 @@ func writeVideoResponse(w *kghttp.ResponseWriter) {
 		n, err := f.Read(buf)
 
 		if n > 0 {
-			if _, err := w.WriteChunkedBody(buf[:n]); err != nil {
+			if _, err := w.Write(buf[:n]); err != nil {
 				log.Printf("error writing chunked body: %v", err)
 				break
 
@@ -157,11 +152,6 @@ func writeVideoResponse(w *kghttp.ResponseWriter) {
 
 	w.Trailers().Set("X-Content-SHA256", fmt.Sprintf("%x", h.Sum(nil)))
 	w.Trailers().Set("X-Content-Length", strconv.Itoa(totalN))
-
-	if _, err := w.WriteChunkedBodyDone(); err != nil {
-		log.Printf("error writing chunked body done: %v", err)
-		return
-	}
 }
 
 func writeResponse(w *kghttp.ResponseWriter) {
@@ -181,7 +171,7 @@ func writeResponse(w *kghttp.ResponseWriter) {
 	w.Headers().Set("content-type", "text/html")
 	w.Headers().Set("connection", "close")
 	w.WriteHeaders(kghttp.StatusOK)
-	w.WriteBody([]byte(body))
+	w.Write([]byte(body))
 }
 
 func writeBadRequestError(w *kghttp.ResponseWriter) {
@@ -201,7 +191,7 @@ func writeBadRequestError(w *kghttp.ResponseWriter) {
 	w.Headers().Set("content-type", "text/html")
 	w.Headers().Set("connection", "close")
 	w.WriteHeaders(kghttp.StatusBadRequest)
-	w.WriteBody([]byte(body))
+	w.Write([]byte(body))
 }
 
 func writeInternalServerError(w *kghttp.ResponseWriter) {
@@ -221,5 +211,5 @@ func writeInternalServerError(w *kghttp.ResponseWriter) {
 	w.Headers().Set("content-type", "text/html")
 	w.Headers().Set("connection", "close")
 	w.WriteHeaders(kghttp.StatusInternalServerError)
-	w.WriteBody([]byte(body))
+	w.Write([]byte(body))
 }

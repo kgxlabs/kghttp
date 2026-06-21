@@ -195,17 +195,24 @@ func writeTransfer(cfg writeTransferCfg) (io.WriteCloser, error) {
 
 	contentLenStr, ok := hs.Get("content-length")
 	if !ok {
-		return nil, nil
+		return &bodyWriter{
+			src: &internal.NoBody,
+		}, nil
 	}
 
 	contentLen, err := strconv.Atoi(contentLenStr)
 	if err != nil {
-		return nil, nil
+		return nil, errors.New("malformed content len")
 	}
 
 	if contentLen == 0 {
-		return nil, nil
+		return &bodyWriter{
+			src: &internal.NoBody,
+		}, nil
 	}
 
-	return nil, nil
+	return &bodyWriter{
+		src: NewFixedWriter(cfg.writer, cfg.headers),
+		w:   cfg.writer,
+	}, nil
 }

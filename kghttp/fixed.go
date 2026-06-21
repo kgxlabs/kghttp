@@ -19,6 +19,7 @@ type fixedWriter struct {
 var (
 	ErrContentLengthMismatch = errors.New("kghttp: err content length mismatched")
 	ErrContentLengthExceeded = errors.New("kghttp: err content length exceeded")
+	ErrPartialBody           = errors.New("kghttp: err partial body")
 	ErrFixedWriterClosed     = errors.New("kghttp: err fixed writer closed")
 )
 
@@ -48,18 +49,41 @@ func (fw *fixedWriter) Write(p []byte) (int, error) {
 		return 0, ErrContentLengthExceeded
 	}
 
-	return 0, nil
+	n, err := fw.w.Write(p)
+
+	if n > 0 {
+		fw.n += n
+	}
+
+	if err != nil {
+		return n, err
+	}
+
+	return n, nil
 }
 
 func (fw *fixedWriter) Close() error {
 	if fw.ended {
 		return ErrFixedWriterClosed
 	}
+
+	if fw.available() > 0 {
+		return ErrPartialBody
+	}
+
+	if err := fw.Flush(); err != nil {
+		return err
+	}
+
 	fw.ended = true
 	return nil
 }
 
 func (fw *fixedWriter) Flush() error {
+	if fw.ended {
+		return ErrFixedWriterClosed
+	}
+
 	return fw.w.Flush()
 }
 
