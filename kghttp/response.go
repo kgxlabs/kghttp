@@ -20,7 +20,7 @@ const (
 )
 
 type ResponseWriter struct {
-	writer      io.Writer
+	writer      io.WriteCloser
 	headers     Headers
 	trailers    Headers
 	writerState writerState
@@ -56,13 +56,6 @@ const (
 	writerStateWritingBody     writerState = "writingBody"
 	writerStateWritingTrailers writerState = "writingTrailers"
 )
-
-func NewWriter(writer io.Writer) *ResponseWriter {
-	return &ResponseWriter{
-		writer:      writer,
-		writerState: writerStateWritingHeaders,
-	}
-}
 
 func ReadResponse(reader *kgbuf.Reader, req *Request) (*Response, error) {
 	response := &Response{
@@ -154,6 +147,13 @@ func statusLineFromString(str string) (*StatusLine, error) {
 		StatusCode:   GetStatusCode(code),
 		ReasonPhrase: strings.Join(parts[2:], " "),
 	}, nil
+}
+
+func NewWriter(writer io.WriteCloser) *ResponseWriter {
+	return &ResponseWriter{
+		writer:      writer,
+		writerState: writerStateWritingHeaders,
+	}
 }
 
 func (w *ResponseWriter) Headers() Headers {

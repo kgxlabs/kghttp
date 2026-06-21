@@ -252,6 +252,10 @@ func (w *memWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
+func (w *memWriter) Close() error {
+	return nil
+}
+
 func (w *memWriter) Result() string {
 	return w.buf.String()
 }

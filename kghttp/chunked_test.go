@@ -1,4 +1,4 @@
-package internal
+package kghttp
 
 import (
 	"bytes"
@@ -128,9 +128,10 @@ func TestCunkedWriterWrite(t *testing.T) {
 	w = kgbuf.NewWriter(ds)
 	cw = &chunkedWriter{
 		w: w,
-		writeTrailers: func(w io.Writer) error {
-			w.Write([]byte("x-hello: true\r\n"))
-			return nil
+		trailers: func() Headers {
+			return Headers{
+				"x-hello": "true",
+			}
 		},
 	}
 	n, err = cw.Write([]byte("hello"))

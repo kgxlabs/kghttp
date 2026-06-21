@@ -75,6 +75,8 @@ func (s *Server) handle(conn net.Conn) {
 	r := kgbuf.NewReader(conn)
 
 	for {
+		// TODO: pass buffered writer to NewWriter
+		// and rename NewWriter to NewResponseWriter
 		rw := NewWriter(conn)
 
 		if s.IdleConnTimeOut > 0 {
