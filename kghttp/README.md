@@ -226,25 +226,135 @@ kghttp/
 
 ## Connection lifecycle
 
-Each accepted TCP connection is handled like this:
+```text
+accept TCP connection
+        |
+        v
+create buffered reader
+        |
+        v
+read one HTTP request
+        |
+        v
+run handler
+        |
+        v
+finalize response body writer
+        |
+        v
+keep connection alive?
+   +----+----+
+  yes        no
+   |         |
+   +-> next request
+             |
+             v
+          close TCP connection
+```
 
-1. The server creates a buffered reader for the accepted connection.
-2. It sets a read deadline when `IdleConnTimeOut` is greater than zero.
-3. It reads one HTTP request, runs your handler, and finalizes the response body writer.
-4. It repeats for the next request on the same connection unless either the request or response has `Connection: close`.
-5. The connection is closed when the loop exits because of `Connection: close`, client disconnect, read timeout, or a request parse error.
+The server repeats this loop for persistent HTTP/1.1 connections. If
+`IdleConnTimeOut` is greater than zero, each read waits only until that
+deadline.
 
-Handlers own the response framing. For fixed-length responses, set `Content-Length` before `WriteHeaders`, then call `Write` with exactly that many bytes. For streamed responses, set `Transfer-Encoding: chunked`, call `Write` for each body chunk, and optionally populate `Trailers()` before the handler returns. The server writes the terminating chunk and trailers during response finalization.
+| Event | Result |
+|-------|--------|
+| Request has `Connection: close` | Close after the response |
+| Response has `Connection: close` | Close after the response |
+| Client disconnects | Exit the loop and close |
+| Read timeout | Exit the loop and close |
+| Request parse error | Exit the loop and close |
+| No close signal and no error | Read the next request on the same connection |
 
-If `Write` is called before `WriteHeaders`, it sends a `200 OK` header block first. If neither `Content-Length` nor `Transfer-Encoding: chunked` is set, the response body writer is empty and body bytes are ignored.
+### Handler responsibilities
 
-Parsed request and response bodies are exposed as `io.ReadCloser`. If `Transfer-Encoding: chunked` is present, reads decode chunks and parse trailers after the terminating `0` chunk. If `Content-Length` is present, reads are limited to that length and return `io.ErrUnexpectedEOF` when the stream ends early. If neither header is present, the body is empty.
+Handlers choose the response framing before the body is written.
+
+| Response style | Required headers | Body behavior |
+|----------------|------------------|---------------|
+| Fixed length | `Content-Length` | Write exactly that many bytes |
+| Streamed | `Transfer-Encoding: chunked` | Write one or more chunks; optional trailers are sent during finalization |
+| Empty | Neither header | Body writes are ignored |
+
+Fixed-length response:
+
+```go
+body := []byte("hello\n")
+
+w.Headers().Set("content-length", strconv.Itoa(len(body)))
+w.WriteHeaders(kghttp.StatusOK)
+w.Write(body)
+```
+
+Chunked response with a trailer:
+
+```go
+w.Headers().Set("transfer-encoding", "chunked")
+w.WriteHeaders(kghttp.StatusOK)
+w.Write([]byte("first chunk\n"))
+w.Trailers().Set("x-finished", "true")
+```
+
+If `Write` is called before `WriteHeaders`, the writer sends `200 OK` first.
+
+### Body readers
+
+Parsed request and response bodies are exposed as `io.ReadCloser`.
+
+| Headers | Reader behavior |
+|---------|-----------------|
+| `Transfer-Encoding: chunked` | Decode chunks and parse trailers after the terminating `0` chunk |
+| `Content-Length` | Read exactly that many bytes; return `io.ErrUnexpectedEOF` if the stream ends early |
+| Neither header | Empty body |
 
 ## Client lifecycle
 
-`NewRequest` parses the URL, initializes headers, and wraps non-closer bodies with `io.NopCloser`. Known body sizes are inferred for `*bytes.Reader`, `*bytes.Buffer`, and `*strings.Reader`; other non-nil bodies are sent with `Transfer-Encoding: chunked`.
+```text
+NewRequest
+    |
+    v
+prepare headers and body
+    |
+    v
+Client.Do
+    |
+    v
+Transport gets idle connection or dials TCP
+    |
+    v
+write request
+    |
+    v
+read response
+    |
+    v
+response body read to EOF?
+   +----+----+
+  yes        no/error
+   |         |
+   v         v
+reuse if     close connection
+allowed
+```
 
-`Client.Do` delegates to its transport. The default transport dials plain TCP, writes the serialized request, reads the response, and returns the connection to the idle pool after the response body is read to EOF. If either side sends `Connection: close`, or body reading ends with an error, the connection is closed instead.
+`NewRequest` parses the URL, initializes headers, and wraps non-closer bodies
+with `io.NopCloser`.
+
+| Request body | Transfer headers |
+|--------------|------------------|
+| `nil` | No body headers added by `NewRequest` |
+| `*bytes.Reader`, `*bytes.Buffer`, `*strings.Reader` | `Content-Length` can be inferred |
+| Other non-nil `io.Reader` | Sent with `Transfer-Encoding: chunked` |
+
+`Client.Do` delegates to its transport. The default transport uses plain TCP,
+serializes one request, parses one response, and then waits for the response
+body to finish before deciding what to do with the connection.
+
+| Event | Connection behavior |
+|-------|---------------------|
+| Response body is read to EOF | Return to the idle pool |
+| Request has `Connection: close` | Close instead of reusing |
+| Response has `Connection: close` | Close instead of reusing |
+| Body reading ends with an error | Close instead of reusing |
 
 ## Current limitations
 
