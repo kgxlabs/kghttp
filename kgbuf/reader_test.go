@@ -12,75 +12,83 @@ import (
 )
 
 func TestReaderReadBytes(t *testing.T) {
-	// Valid: Read String matches
-	reader := newTestReader("hello world\nnice to meet you\n", 8)
-	line, err := reader.ReadBytes([]byte("\n"))
-	require.NoError(t, err)
-	assert.Equal(t, "hello world\n", string(line))
+	t.Run("read string matches", func(t *testing.T) {
+		reader := newTestReader("hello world\nnice to meet you\n", 8)
+		line, err := reader.ReadBytes([]byte("\n"))
+		require.NoError(t, err)
+		assert.Equal(t, "hello world\n", string(line))
+	})
 
-	// Valid: Read string consumes advances to new line
-	reader = newTestReader("hello world\nnice to meet you\nwelcome", 8)
-	line, err = reader.ReadBytes([]byte("\n"))
-	require.NoError(t, err)
-	assert.Equal(t, "hello world\n", string(line))
-	line, err = reader.ReadBytes([]byte("\n"))
-	require.NoError(t, err)
-	assert.Equal(t, "nice to meet you\n", string(line))
-	line, err = reader.ReadBytes([]byte("\n"))
-	require.Error(t, err)
-	require.ErrorIs(t, err, io.EOF)
-	assert.Equal(t, "welcome", string(line))
+	t.Run("read string consumes and advances to new line", func(t *testing.T) {
+		reader := newTestReader("hello world\nnice to meet you\nwelcome", 8)
+		line, err := reader.ReadBytes([]byte("\n"))
+		require.NoError(t, err)
+		assert.Equal(t, "hello world\n", string(line))
+		line, err = reader.ReadBytes([]byte("\n"))
+		require.NoError(t, err)
+		assert.Equal(t, "nice to meet you\n", string(line))
+		line, err = reader.ReadBytes([]byte("\n"))
+		require.Error(t, err)
+		require.ErrorIs(t, err, io.EOF)
+		assert.Equal(t, "welcome", string(line))
+	})
 
-	// Valid: No delim found
-	reader = newTestReader("hello world. nice to meet you.", 8)
-	line, err = reader.ReadBytes([]byte("\n"))
-	require.Error(t, err)
-	require.ErrorIs(t, err, io.EOF)
-	assert.Equal(t, "hello world. nice to meet you.", string(line))
+	t.Run("no delim found", func(t *testing.T) {
+		reader := newTestReader("hello world. nice to meet you.", 8)
+		line, err := reader.ReadBytes([]byte("\n"))
+		require.Error(t, err)
+		require.ErrorIs(t, err, io.EOF)
+		assert.Equal(t, "hello world. nice to meet you.", string(line))
+	})
 
-	// Valid: Grow buffer if needed
-	s := makeHugeString(1024, "")
-	reader = newTestReader(fmt.Sprintf("%s\n", s), 1024)
-	line, err = reader.ReadBytes([]byte("\n"))
-	require.NoError(t, err)
-	assert.Equal(t, fmt.Sprintf("%s\n", s), string(line))
+	t.Run("grow buffer if needed", func(t *testing.T) {
+		s := makeHugeString(1024, "")
+		reader := newTestReader(fmt.Sprintf("%s\n", s), 1024)
+		line, err := reader.ReadBytes([]byte("\n"))
+		require.NoError(t, err)
+		assert.Equal(t, fmt.Sprintf("%s\n", s), string(line))
+	})
 
 	// Valid: Overwrite buffer later
 	// TODO: Figure out how to add test case for overwritting already read byte slices
 }
 
 func TestReaderReadSlice(t *testing.T) {
-	// Valid: Read String matches
-	reader := newTestReader("hello world\nnice to meet you\n", 8)
-	line, err := reader.ReadSlice('\n')
-	require.NoError(t, err)
-	assert.Equal(t, "hello world\n", string(line))
+	t.Run("read string matches", func(t *testing.T) {
+		reader := newTestReader("hello world\nnice to meet you\n", 8)
+		line, err := reader.ReadSlice('\n')
+		require.NoError(t, err)
+		assert.Equal(t, "hello world\n", string(line))
+	})
 
-	// Valid: Read string consumes advances to new line
-	reader = newTestReader("hello world\nnice to meet you\nwelcome", 8)
-	line, err = reader.ReadSlice('\n')
-	require.NoError(t, err)
-	assert.Equal(t, "hello world\n", string(line))
-	line, err = reader.ReadSlice('\n')
-	require.NoError(t, err)
-	assert.Equal(t, "nice to meet you\n", string(line))
-	line, err = reader.ReadSlice('\n')
-	require.NoError(t, err)
-	assert.Equal(t, "", string(line))
+	t.Run("read string consumes and advances to new line", func(t *testing.T) {
+		reader := newTestReader("hello world\nnice to meet you\nwelcome", 8)
+		line, err := reader.ReadSlice('\n')
+		require.NoError(t, err)
+		assert.Equal(t, "hello world\n", string(line))
+		line, err = reader.ReadSlice('\n')
+		require.NoError(t, err)
+		assert.Equal(t, "nice to meet you\n", string(line))
+		line, err = reader.ReadSlice('\n')
+		require.NoError(t, err)
+		assert.Equal(t, "", string(line))
+	})
 
-	// Invalid: No delim found but buffer still has space
-	reader = newTestReader("hello world. nice to meet you.", 8)
-	line, err = reader.ReadSlice('\n')
-	require.NoError(t, err)
-	assert.Equal(t, "", string(line))
+	t.Run("no delim found but buffer still has space", func(t *testing.T) {
+		reader := newTestReader("hello world. nice to meet you.", 8)
+		line, err := reader.ReadSlice('\n')
+		require.NoError(t, err)
+		assert.Equal(t, "", string(line))
+	})
 
-	// Invalid: No delim found and buffer fills
-	s := makeHugeString(readerDefaultBufferSize+16, "")
-	reader = newTestReader(fmt.Sprintf("%s\n", s), 1024)
-	line, err = reader.ReadSlice('\n')
-	require.Error(t, err)
-	require.ErrorIs(t, err, ErrBufferFull)
-	assert.Equal(t, readerDefaultBufferSize, len(line))
+	t.Run("no delim found and buffer fills", func(t *testing.T) {
+		s := makeHugeString(readerDefaultBufferSize+16, "")
+		reader := newTestReader(fmt.Sprintf("%s\n", s), 1024)
+		line, err := reader.ReadSlice('\n')
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrBufferFull)
+		assert.Equal(t, readerDefaultBufferSize, len(line))
+	})
 }
 
 func TestReaderRead(t *testing.T) {
@@ -102,46 +110,51 @@ func TestReaderRead(t *testing.T) {
 }
 
 func TestReaderReadFull(t *testing.T) {
-	// Valid: String matches
-	reader := newTestReader("hello world", 8)
-	p := make([]byte, 5)
-	n, err := reader.ReadFull(p)
-	require.NoError(t, err)
-	assert.Equal(t, 5, n)
-	assert.Equal(t, "hello", string(p))
+	t.Run("string matches", func(t *testing.T) {
+		reader := newTestReader("hello world", 8)
+		p := make([]byte, 5)
+		n, err := reader.ReadFull(p)
+		require.NoError(t, err)
+		assert.Equal(t, 5, n)
+		assert.Equal(t, "hello", string(p))
+	})
 
-	// Valid: Read until byte slice is full
-	reader = newTestReader("hello world", 8)
-	p = make([]byte, 11)
-	n, err = reader.ReadFull(p)
-	require.NoError(t, err)
-	assert.Equal(t, 11, n)
-	assert.Equal(t, "hello world", string(p))
+	t.Run("read until byte slice is full", func(t *testing.T) {
+		reader := newTestReader("hello world", 8)
+		p := make([]byte, 11)
+		n, err := reader.ReadFull(p)
+		require.NoError(t, err)
+		assert.Equal(t, 11, n)
+		assert.Equal(t, "hello world", string(p))
+	})
 
-	// Valid: Read empty buffer
-	reader = newTestReader("", 8)
-	p = make([]byte, 0)
-	n, err = reader.ReadFull(p)
-	require.NoError(t, err)
-	assert.Equal(t, 0, n)
-	assert.Equal(t, "", string(p))
+	t.Run("read empty buffer", func(t *testing.T) {
+		reader := newTestReader("", 8)
+		p := make([]byte, 0)
+		n, err := reader.ReadFull(p)
+		require.NoError(t, err)
+		assert.Equal(t, 0, n)
+		assert.Equal(t, "", string(p))
+	})
 
-	// Valid: Grow buffer if needed to fill the byte slice
-	s := makeHugeString(32768, "")
-	reader = newTestReader(s, 4096)
-	p = make([]byte, 32768)
-	n, err = reader.ReadFull(p)
-	require.NoError(t, err)
-	assert.Equal(t, 32768, n)
-	assert.Equal(t, s, string(p))
+	t.Run("grow buffer if needed to fill the byte slice", func(t *testing.T) {
+		s := makeHugeString(32768, "")
+		reader := newTestReader(s, 4096)
+		p := make([]byte, 32768)
+		n, err := reader.ReadFull(p)
+		require.NoError(t, err)
+		assert.Equal(t, 32768, n)
+		assert.Equal(t, s, string(p))
+	})
 
-	// Invalid: Reach end before input is filled
-	reader = newTestReader("hello world", 8)
-	p = make([]byte, 12)
-	n, err = reader.ReadFull(p)
-	require.Error(t, err)
-	assert.Equal(t, 11, n)
-	assert.Equal(t, "hello world\x00", string(p))
+	t.Run("reach end before input is filled", func(t *testing.T) {
+		reader := newTestReader("hello world", 8)
+		p := make([]byte, 12)
+		n, err := reader.ReadFull(p)
+		require.Error(t, err)
+		assert.Equal(t, 11, n)
+		assert.Equal(t, "hello world\x00", string(p))
+	})
 }
 
 // ReadString is literally a wrapper around ReadBytes with no logic of it's own
@@ -157,74 +170,81 @@ func TestReaderReadString(t *testing.T) {
 }
 
 func TestReaderSizeCap(t *testing.T) {
-	// Valid: Empty buffer with capacity
-	reader := newTestReader("", 8)
-	assert.Equal(t, 0, reader.Buffered())
-	assert.Equal(t, reader.size, reader.Size())
+	t.Run("empty buffer with capacity", func(t *testing.T) {
+		reader := newTestReader("", 8)
+		assert.Equal(t, 0, reader.Buffered())
+		assert.Equal(t, reader.size, reader.Size())
+	})
 
-	// Valid: buffer with content
-	reader = newTestReader("hello world", 11)
-	_, err := reader.Peek(11)
-	require.NoError(t, err)
-	assert.Equal(t, 11, reader.Buffered())
-	assert.Equal(t, reader.size, reader.Size())
-
+	t.Run("buffer with content", func(t *testing.T) {
+		reader := newTestReader("hello world", 11)
+		_, err := reader.Peek(11)
+		require.NoError(t, err)
+		assert.Equal(t, 11, reader.Buffered())
+		assert.Equal(t, reader.size, reader.Size())
+	})
 }
 
 func TestReaderPeek(t *testing.T) {
-	// Valid: Specified n is available
-	reader := newTestReader("hello world", 8)
-	b, err := reader.Peek(5)
-	require.NoError(t, err)
-	assert.Equal(t, "hello", string(b))
-	assert.Equal(t, 5, reader.Buffered())
-	b, err = reader.Peek(6)
-	require.NoError(t, err)
-	assert.Equal(t, "hello ", string(b))
-	assert.Equal(t, 6, reader.Buffered())
-	b, err = reader.Peek(12)
-	require.Error(t, err)
-	assert.Equal(t, 11, len(b))
+	t.Run("specified n is available", func(t *testing.T) {
+		reader := newTestReader("hello world", 8)
+		b, err := reader.Peek(5)
+		require.NoError(t, err)
+		assert.Equal(t, "hello", string(b))
+		assert.Equal(t, 5, reader.Buffered())
+		b, err = reader.Peek(6)
+		require.NoError(t, err)
+		assert.Equal(t, "hello ", string(b))
+		assert.Equal(t, 6, reader.Buffered())
+		b, err = reader.Peek(12)
+		require.Error(t, err)
+		assert.Equal(t, 11, len(b))
+	})
 
-	// Valid: Peek zero byte
-	reader = newTestReader("hello world", 8)
-	b, err = reader.Peek(0)
-	require.NoError(t, err)
-	assert.Equal(t, 0, len(b))
+	t.Run("peek zero byte", func(t *testing.T) {
+		reader := newTestReader("hello world", 8)
+		b, err := reader.Peek(0)
+		require.NoError(t, err)
+		assert.Equal(t, 0, len(b))
+	})
 
-	// Invalid: Only partial data is available
-	reader = newTestReader("hello world", 5)
-	b, err = reader.Peek(5)
-	require.NoError(t, err)
-	assert.Equal(t, "hello", string(b))
-	assert.Equal(t, 5, reader.Buffered())
-	b, err = reader.Peek(5)
-	require.NoError(t, err)
-	assert.Equal(t, "hello", string(b))
-	assert.Equal(t, 5, reader.Buffered())
-	b, err = reader.Peek(12)
-	require.Error(t, err)
-	assert.Equal(t, 11, len(b))
+	t.Run("only partial data is available", func(t *testing.T) {
+		reader := newTestReader("hello world", 5)
+		b, err := reader.Peek(5)
+		require.NoError(t, err)
+		assert.Equal(t, "hello", string(b))
+		assert.Equal(t, 5, reader.Buffered())
+		b, err = reader.Peek(5)
+		require.NoError(t, err)
+		assert.Equal(t, "hello", string(b))
+		assert.Equal(t, 5, reader.Buffered())
+		b, err = reader.Peek(12)
+		require.Error(t, err)
+		assert.Equal(t, 11, len(b))
+	})
 
-	// Invalid: No data is available
-	reader = newTestReader("", 5)
-	b, err = reader.Peek(5)
-	require.Error(t, err)
-	assert.Equal(t, 0, len(b))
+	t.Run("no data is available", func(t *testing.T) {
+		reader := newTestReader("", 5)
+		b, err := reader.Peek(5)
+		require.Error(t, err)
+		assert.Equal(t, 0, len(b))
+	})
 }
 
 func TestReaderReadBytesLimit(t *testing.T) {
-	// Valid: Only read specified limit
-	reader := newTestReader("partial read! Ignore the rest", 8)
-	b, err := reader.ReadBytesLimit([]byte("!"), 20)
-	require.NoError(t, err)
-	assert.Equal(t, "partial read!", string(b))
-	assert.LessOrEqual(t, len(b), 20)
+	t.Run("only read specified limit", func(t *testing.T) {
+		reader := newTestReader("partial read! Ignore the rest", 8)
+		b, err := reader.ReadBytesLimit([]byte("!"), 20)
+		require.NoError(t, err)
+		assert.Equal(t, "partial read!", string(b))
+		assert.LessOrEqual(t, len(b), 20)
+	})
 
-	// Invalid: Exceed limit
-	reader = newTestReader("there is no delimiter for this sentence", 8)
-	b, err = reader.ReadBytesLimit([]byte("\n"), 20)
-	require.Error(t, err)
+	t.Run("exceed limit", func(t *testing.T) {
+		reader := newTestReader("there is no delimiter for this sentence", 8)
+		_, err := reader.ReadBytesLimit([]byte("\n"), 20)
+		require.Error(t, err)
+	})
 }
 
 func makeHugeString(repeat int, delim string) string {
