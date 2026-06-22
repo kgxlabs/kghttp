@@ -187,3 +187,11 @@ func parseHTTPVersion(proto string) (string, int, int, error) {
 
 	return proto, major, minor, nil
 }
+
+func serizlizeReqStatusLine(req *Request) []byte {
+	path := req.URL.Path
+	if path == "" {
+		path = "/"
+	}
+	return fmt.Appendf(nil, "%s %s %s\r\n", req.Method, path, req.HTTPVersion())
+}

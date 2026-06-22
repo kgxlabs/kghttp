@@ -127,7 +127,6 @@ func transferFields(r *kgbuf.Reader, msg any) error {
 }
 
 func (br *bodyReader) Read(p []byte) (nn int, err error) {
-
 	defer func() {
 		br.finish(err)
 	}()

@@ -1,14 +1,14 @@
 package kghttp
 
 import (
+	"bytes"
+	"github.com/Kaung-HtetKyaw/kgx/kgurl"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io"
 	"strconv"
 	"testing"
 	"time"
-
-	"github.com/Kaung-HtetKyaw/kgx/kgurl"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTransportRoundTrip(t *testing.T) {
@@ -16,7 +16,7 @@ func TestTransportRoundTrip(t *testing.T) {
 	server := &Server{
 		Addr: "127.0.0.1:0",
 		Handler: func(w *ResponseWriter, req *Request) {
-			body := "Hello World"
+			body := "hello world"
 			data := []byte(body)
 			w.Headers().Set("content-length", strconv.Itoa(len(data)))
 			w.Headers().Set("content-type", "text/plain")
@@ -48,7 +48,7 @@ func TestTransportRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	assert.Equal(t, "Hello World", string(body))
+	assert.Equal(t, "hello world", string(body))
 
 	// Valid: POST request declared content-length
 
@@ -57,4 +57,22 @@ func TestTransportRoundTrip(t *testing.T) {
 	// Invalid: Body shorter than declared content-length
 
 	// Invalid: Malformed chunked encoding
+}
+
+type body struct {
+	r io.Reader
+}
+
+func newBody(p []byte) *body {
+	return &body{
+		r: bytes.NewReader(p),
+	}
+}
+
+func (r *body) Read(p []byte) (int, error) {
+	return r.r.Read(p)
+}
+
+func (r *body) Close() error {
+	return nil
 }

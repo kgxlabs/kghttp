@@ -107,7 +107,6 @@ func (t *Transport) RoundTrip(req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	// TODO: can this error be an EOF here ??????
 	if err := pc.writeRequest(req); err != nil {
 		pc.conn.Close()
 		return nil, err

@@ -169,7 +169,7 @@ func (rw *ResponseWriter) WriteHeaders(statusCode StatusCode) error {
 		return fmt.Errorf("cannot write headers in state: %s", rw.writerState)
 	}
 
-	statusLine := serializeStatusLine(statusCode)
+	statusLine := serializeRespStatusLine(statusCode)
 
 	if _, err := rw.w.Write(statusLine); err != nil {
 		return err
@@ -232,23 +232,8 @@ func (rw *ResponseWriter) finish() error {
 	return rw.bw.Close()
 }
 
-func serializeHeaders(headers Headers) ([]byte, error) {
-	var buf bytes.Buffer
-	for key, value := range headers {
-		if _, err := buf.Write([]byte(fmt.Sprintf("%s: %s\r\n", key, value))); err != nil {
-			return []byte{}, err
-		}
-	}
-
-	if _, err := buf.Write([]byte("\r\n")); err != nil {
-		return []byte{}, err
-	}
-
-	return buf.Bytes(), nil
-}
-
-func serializeStatusLine(s StatusCode) []byte {
-	return []byte(fmt.Sprintf("HTTP/1.1 %d %s\r\n", s, getReasonPhrase(s)))
+func serializeRespStatusLine(s StatusCode) []byte {
+	return fmt.Appendf(nil, "HTTP/1.1 %d %s\r\n", s, getReasonPhrase(s))
 }
 
 func GetStatusCode(s int) StatusCode {
