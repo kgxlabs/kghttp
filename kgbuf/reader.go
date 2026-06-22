@@ -265,28 +265,43 @@ func (b *Reader) ReadStringLimit(delim string, limit int) (string, error) {
 }
 
 func (b *Reader) Peek(n int) ([]byte, error) {
-	prevW := b.w
 	if n == 0 {
 		return []byte{}, nil
 	}
 
-	nw, err := b.reader.Read(b.buf[b.w : b.w+n])
-	if nw > 0 {
-		b.w += nw
-	}
-
-	if nw != n {
-		return b.buf[prevW:b.w], ErrPartialRead
-	}
-
-	if err != nil {
-		if errors.Is(err, io.EOF) && nw != n {
-			return b.buf[prevW:b.w], ErrPartialRead
+	for b.w-b.r < n {
+		if b.r > 0 {
+			copy(b.buf, b.buf[b.r:b.w])
+			b.w -= b.r
+			b.r = 0
 		}
-		return b.buf[prevW:b.w], ErrReaderFailedToRead
+
+		need := n - (b.w - b.r)
+		// Expand buf till it fits n
+		for b.w+need > len(b.buf) {
+			newBuf := make([]byte, len(b.buf)*2)
+			copy(newBuf, b.buf)
+			b.buf = newBuf
+		}
+
+		nw, err := b.reader.Read(b.buf[b.w : b.w+need])
+		if nw > 0 {
+			b.w += nw
+		}
+
+		if err != nil {
+			if errors.Is(err, io.EOF) && b.w-b.r < n {
+				return b.buf[b.r:b.w], ErrPartialRead
+			}
+			return b.buf[b.r:b.w], ErrReaderFailedToRead
+		}
+
+		if nw == 0 {
+			return b.buf[b.r:b.w], ErrPartialRead
+		}
 	}
 
-	return b.buf[prevW:b.w], nil
+	return b.buf[b.r : b.r+n], nil
 }
 
 func (b *Reader) Buffered() int {

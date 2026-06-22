@@ -22,11 +22,15 @@ type Request struct {
 	Headers        Headers
 	Body           io.ReadCloser
 	Trailers       Headers
+	ContentLength  int
 	bodyLengthRead int
 	state          RequestState
 }
 
-var ErrBadRequest = errors.New("bad request")
+var (
+	ErrBadRequest    = errors.New("bad request")
+	ErrInvalidMethod = errors.New("kghttp: invalid http method")
+)
 
 type RequestState string
 
@@ -41,6 +45,57 @@ const (
 	CRLF             = "\r\n"
 	RequestLineLimit = 8192
 )
+
+func NewRequest(method string, url string, body io.Reader) (*Request, error) {
+	if method == "" {
+		method = "GET"
+	}
+
+	if !validateRequestMethod(method) {
+		return nil, ErrInvalidMethod
+	}
+
+	u, err := kgurl.Parse(url)
+	if err != nil {
+		return nil, err
+	}
+
+	rc, ok := body.(io.ReadCloser)
+	if !ok && body != nil {
+		rc = io.NopCloser(body)
+	}
+
+	// NOTE: Sometime url parser can produce "example.com:"
+	u.Host = strings.TrimSuffix(u.Host, ":")
+
+	req := &Request{
+		Method:     method,
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Headers:    make(Headers),
+		Body:       rc,
+		URL:        u,
+	}
+
+	if body != nil {
+		switch v := body.(type) {
+		case *bytes.Reader:
+			req.ContentLength = v.Len()
+		case *bytes.Buffer:
+			req.ContentLength = v.Len()
+		case *strings.Reader:
+			req.ContentLength = v.Len()
+		default:
+			// NOTE: This is for content length unknown
+			req.ContentLength = -1
+		}
+	}
+
+	req.Headers.Set("host", u.Host)
+
+	return req, nil
+}
 
 func ReadRequest(reader *kgbuf.Reader) (*Request, error) {
 	request := &Request{
@@ -131,7 +186,10 @@ func (r *Request) parseRequestLine(data []byte) (int, error) {
 }
 
 func (r *Request) HTTPVersion() string {
-	return fmt.Sprintf("%s/%d.%d", r.Proto, r.ProtoMajor, r.ProtoMinor)
+	if r.Proto != "" {
+		return r.Proto
+	}
+	return fmt.Sprintf("HTTP/%d.%d", r.ProtoMajor, r.ProtoMinor)
 }
 
 func validateRequestMethod(method string) bool {

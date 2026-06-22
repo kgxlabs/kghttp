@@ -34,6 +34,10 @@ var (
 	ErrInvalidHttpRequest = errors.New("kghttp: err invalid http request")
 )
 
+var DefaultTransport RoundTripper = &Transport{
+	idle: make(map[string][]*persistConn),
+}
+
 func NewTransport() *Transport {
 	return &Transport{
 		idle: make(map[string][]*persistConn),
@@ -108,13 +112,13 @@ func (t *Transport) RoundTrip(req *Request) (*Response, error) {
 	}
 
 	if err := pc.writeRequest(req); err != nil {
-		pc.conn.Close()
+		pc.close()
 		return nil, err
 	}
 
 	resp, err := pc.readResponse(req)
 	if err != nil {
-		pc.conn.Close()
+		pc.close()
 		return nil, err
 	}
 
@@ -129,13 +133,13 @@ func (t *Transport) RoundTrip(req *Request) (*Response, error) {
 func (t *Transport) onBodyDone(req *Request, resp *Response, key string, pc *persistConn) func(error) {
 	return func(err error) {
 		if err != nil && err != io.EOF {
-			pc.conn.Close()
+			pc.close()
 			return
 		}
 
 		ch := connectionHeader(req, resp)
 		if ch == "close" {
-			pc.conn.Close()
+			pc.close()
 			return
 		}
 

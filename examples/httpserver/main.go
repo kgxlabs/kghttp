@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -18,7 +17,7 @@ import (
 )
 
 const port = 8000
-const httpBinURL = "https://httpbin.org/"
+const httpBinURL = "http://httpbin.org/"
 const httpBinPath = "/httpbin/"
 
 func main() {
@@ -67,16 +66,18 @@ func handler(w *kghttp.ResponseWriter, req *kghttp.Request) {
 func httpBinProxyHandler(w *kghttp.ResponseWriter, req *kghttp.Request) {
 	path := strings.TrimPrefix(req.URL.Path, httpBinPath)
 	url := httpBinURL + path
-	resp, err := http.Get(url)
+	resp, err := kghttp.Get(url)
 	if err != nil {
 		writeInternalServerError(w)
 		return
 	}
+	defer resp.Body.Close()
 
 	w.Headers().Set("transfer-encoding", "chunked")
-	w.Headers().Set("content-type", resp.Header.Get("content-type"))
+	contentType, _ := resp.Headers.Get("content-type")
+	w.Headers().Set("content-type", contentType)
 	w.Headers().Set("trailer", "X-Content-SHA256, X-Content-Length")
-	w.WriteHeaders(kghttp.StatusCode(resp.StatusCode))
+	w.WriteHeaders(resp.StatusLine.StatusCode)
 
 	buf := make([]byte, 1024)
 	h := sha256.New()
