@@ -130,6 +130,10 @@ func (r *Request) parseRequestLine(data []byte) (int, error) {
 	return i + 2, nil
 }
 
+func (r *Request) HTTPVersion() string {
+	return fmt.Sprintf("%s/%d.%d", r.Proto, r.ProtoMajor, r.ProtoMinor)
+}
+
 func validateRequestMethod(method string) bool {
 	if method == "" {
 		return false
@@ -182,4 +186,12 @@ func parseHTTPVersion(proto string) (string, int, int, error) {
 	}
 
 	return proto, major, minor, nil
+}
+
+func serizlizeReqStatusLine(req *Request) []byte {
+	path := req.URL.Path
+	if path == "" {
+		path = "/"
+	}
+	return fmt.Appendf(nil, "%s %s %s\r\n", req.Method, path, req.HTTPVersion())
 }

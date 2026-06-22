@@ -87,3 +87,19 @@ func isTokenChar(c byte) bool {
 
 	return slices.Contains(tokenChars, c)
 }
+
+// TODO: Refactor to preallocate size to byte slice and append to it
+func serializeHeaders(headers Headers) ([]byte, error) {
+	var buf bytes.Buffer
+	for key, value := range headers {
+		if _, err := buf.Write([]byte(fmt.Sprintf("%s: %s\r\n", key, value))); err != nil {
+			return []byte{}, err
+		}
+	}
+
+	if _, err := buf.Write([]byte("\r\n")); err != nil {
+		return []byte{}, err
+	}
+
+	return buf.Bytes(), nil
+}

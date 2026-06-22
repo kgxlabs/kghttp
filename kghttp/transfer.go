@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"strconv"
+	"sync"
 
 	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
 	"github.com/Kaung-HtetKyaw/kgx/kghttp/internal"
@@ -20,6 +21,8 @@ type bodyReader struct {
 	earlyClosed bool
 	chunked     bool
 	remaining   int
+	once        sync.Once
+	onDone      func(error)
 }
 
 func readCloser(r *kgbuf.Reader, headers Headers, msg any) (io.ReadCloser, error) {
@@ -123,42 +126,59 @@ func transferFields(r *kgbuf.Reader, msg any) error {
 	}
 }
 
-func (br *bodyReader) Read(p []byte) (int, error) {
+func (br *bodyReader) Read(p []byte) (nn int, err error) {
+	defer func() {
+		br.finish(err)
+	}()
+
 	if br.closed {
 		if br.earlyClosed || !br.sawEOF {
-			return 0, io.ErrUnexpectedEOF
-		}
-		return 0, io.EOF
-	}
-
-	n, err := br.src.Read(p)
-
-	if n > 0 {
-		br.remaining -= n
-	}
-
-	if err != nil && err == io.EOF {
-		br.closed = true
-		if br.remaining > 0 {
-			br.earlyClosed = true
-			return n, io.ErrUnexpectedEOF
+			err = io.ErrUnexpectedEOF
+			return
 		}
 
-		br.sawEOF = true
+		err = io.EOF
+		return
+	} else {
+		nn, err = br.src.Read(p)
 
-		// after 0\r\n is processed, parse trailers
-		if br.chunked {
-			if trailerErr := transferFields(br.r, br.msg); trailerErr != nil {
-				return n, trailerErr
+		if nn > 0 {
+			br.remaining -= nn
+		}
+
+		if err != nil && err == io.EOF {
+			br.closed = true
+			if br.remaining > 0 {
+				br.earlyClosed = true
+				err = io.ErrUnexpectedEOF
+				return
+			}
+
+			br.sawEOF = true
+
+			// after 0\r\n is processed, parse trailers
+			if br.chunked {
+				if trailerErr := transferFields(br.r, br.msg); trailerErr != nil {
+					err = trailerErr
+					return
+				}
 			}
 		}
 	}
 
-	return n, err
+	return nn, err
 }
 
 func (br *bodyReader) Close() error {
 	return nil
+}
+
+func (br *bodyReader) finish(err error) {
+	br.once.Do(func() {
+		if br.onDone != nil {
+			br.onDone(err)
+		}
+	})
 }
 
 type bodyWriter struct {
