@@ -98,7 +98,7 @@ func (s *Server) handle(conn net.Conn) {
 			}
 
 			if errors.Is(err, ErrBadRequest) {
-				body := []byte(fmt.Sprintf("bad request: %v", err))
+				body := []byte(fmt.Appendf(nil, "bad request: %v", err))
 				rw.Headers().Set("content-length", strconv.Itoa(len(body)))
 				rw.Headers().Set("content-type", "text/plain")
 				rw.Headers().Set("connection", "close")
@@ -108,7 +108,7 @@ func (s *Server) handle(conn net.Conn) {
 				return
 			}
 
-			body := []byte(fmt.Sprintf("failed to parse request: %v", err))
+			body := []byte(fmt.Appendf(nil, "failed to parse request: %v", err))
 			rw.Headers().Set("content-length", strconv.Itoa(len(body)))
 			rw.Headers().Set("content-type", "text/plain")
 			rw.Headers().Set("connection", "close")

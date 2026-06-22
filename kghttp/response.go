@@ -50,6 +50,10 @@ const (
 	writerStateWritingTrailers writerState = "writingTrailers"
 )
 
+var (
+	ErrMalformedStatusLine = errors.New("kghttp: err malformed status line")
+)
+
 func ReadResponse(reader *kgbuf.Reader, req *Request) (*Response, error) {
 	response := &Response{
 		Headers: NewHeaders(),
@@ -118,7 +122,7 @@ func parseStatusLine(data []byte) (*StatusLine, int, error) {
 func statusLineFromString(str string) (*StatusLine, error) {
 	parts := strings.Fields(str)
 	if len(parts) < 2 {
-		return nil, errors.New("Invalid response")
+		return nil, ErrMalformedStatusLine
 	}
 
 	version, err := getHTTPVersion(parts[0])
@@ -128,11 +132,11 @@ func statusLineFromString(str string) (*StatusLine, error) {
 
 	code, err := strconv.Atoi(parts[1])
 	if err != nil {
-		return nil, fmt.Errorf("invalid status code: %s", err)
+		return nil, ErrMalformedStatusLine
 	}
 
 	if code < 100 || code > 999 {
-		return nil, fmt.Errorf("invalid status code: %d", code)
+		return nil, ErrMalformedStatusLine
 	}
 
 	return &StatusLine{
@@ -264,17 +268,17 @@ func getReasonPhrase(s StatusCode) string {
 
 func getHTTPVersion(proto string) (string, error) {
 	if !validateHTTPVersion(proto) {
-		return "", errors.New("Invalid HTTP Version")
+		return "", ErrMalformedHttpVersion
 	}
 
 	parts := strings.Split(proto, "/")
 
 	if parts[0] != "HTTP" {
-		return "", errors.New("Invalid HTTP Version")
+		return "", ErrMalformedHttpVersion
 	}
 
 	if parts[1] != "1.1" {
-		return "", errors.New("Invalid HTTP Version")
+		return "", ErrMalformedHttpVersion
 	}
 
 	return parts[1], nil

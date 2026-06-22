@@ -21,10 +21,10 @@ type Reader struct {
 const readerDefaultBufferSize = 4096
 
 var (
-	ErrReaderFailedToRead   = errors.New("kgbuf: reader failed to read")
-	ErrPartialRead          = errors.New("kgbuf: partial read")
-	ErrByteReadLimitReached = errors.New("kgbuf: byte read limit reached")
-	ErrBufferFull           = errors.New("kgbuf: buffer full")
+	ErrReaderFailedToRead   = errors.New("kgbuf:err reader failed to read")
+	ErrPartialRead          = errors.New("kgbuf:err partial read")
+	ErrByteReadLimitReached = errors.New("kgbuf:err byte read limit reached")
+	ErrBufferFull           = errors.New("kgbuf:err buffer full")
 )
 
 func NewReader(reader io.Reader) *Reader {

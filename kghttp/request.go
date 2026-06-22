@@ -28,8 +28,10 @@ type Request struct {
 }
 
 var (
-	ErrBadRequest    = errors.New("bad request")
-	ErrInvalidMethod = errors.New("kghttp: invalid http method")
+	ErrBadRequest           = errors.New("bad request")
+	ErrInvalidHttpMethod    = errors.New("kghttp:err invalid http method")
+	ErrMalformedHttpVersion = errors.New("kghttp:err malformed http version")
+	ErrMalformedHeaders     = errors.New("kghttp:err malformed http headers")
 )
 
 type RequestState string
@@ -52,7 +54,7 @@ func NewRequest(method string, url string, body io.Reader) (*Request, error) {
 	}
 
 	if !validateRequestMethod(method) {
-		return nil, ErrInvalidMethod
+		return nil, ErrInvalidHttpMethod
 	}
 
 	u, err := kgurl.Parse(url)
@@ -156,13 +158,13 @@ func (r *Request) parseRequestLine(data []byte) (int, error) {
 	parts := strings.Fields(line)
 
 	if len(parts) != 3 {
-		return 0, errors.New("Invalid request")
+		return 0, ErrMalformedHeaders
 	}
 
 	target := parts[1]
 	method := parts[0]
 	if !validateRequestMethod(method) {
-		return 0, errors.New("Invalid method")
+		return 0, ErrInvalidHttpMethod
 	}
 
 	u, err := kgurl.Parse(target)
@@ -225,22 +227,22 @@ func validateHTTPVersion(proto string) bool {
 
 func parseHTTPVersion(proto string) (string, int, int, error) {
 	if !validateHTTPVersion(proto) {
-		return "", 0, 0, errors.New("Invalid HTTP Version")
+		return "", 0, 0, ErrMalformedHttpVersion
 	}
 
 	parts := strings.Split(proto, "/")
 	version := strings.Split(parts[1], ".")
 	if len(version) != 2 {
-		return "", 0, 0, errors.New("Invalid HTTP Version")
+		return "", 0, 0, ErrMalformedHttpVersion
 	}
 
 	major, err := strconv.Atoi(version[0])
 	if err != nil {
-		return "", 0, 0, errors.New("Invalid HTTP Version")
+		return "", 0, 0, ErrMalformedHttpVersion
 	}
 	minor, err := strconv.Atoi(version[1])
 	if err != nil {
-		return "", 0, 0, errors.New("Invalid HTTP Version")
+		return "", 0, 0, ErrMalformedHttpVersion
 	}
 
 	return proto, major, minor, nil
