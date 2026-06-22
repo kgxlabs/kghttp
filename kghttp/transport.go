@@ -30,7 +30,6 @@ const (
 )
 
 var (
-	ErrInvalidHttpMethod  = errors.New("kghttp: err invalid http method")
 	ErrInvalidHttpRequest = errors.New("kghttp: err invalid http request")
 )
 

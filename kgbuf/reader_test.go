@@ -87,7 +87,7 @@ func TestReaderReadSlice(t *testing.T) {
 		line, err := reader.ReadSlice('\n')
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrBufferFull)
-		assert.Equal(t, readerDefaultBufferSize, len(line))
+		assert.Equal(t, reader.size, len(line))
 	})
 }
 

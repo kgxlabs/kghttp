@@ -3,12 +3,9 @@ package kghttp
 import (
 	"bytes"
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 )
-
-var allowedChars = regexp.MustCompile(`^[A-Za-z0-9!#$%&'*+\-.\^_` + "`" + `|~]+$`)
 
 type Headers map[string]string
 
