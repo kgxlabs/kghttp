@@ -130,7 +130,7 @@ func newTransportRequest(t *testing.T, method, addr string, headers Headers, req
 
 	return &Request{
 		Method:     method,
-		Proto:      "HTTP",
+		Proto:      "HTTP/1.1",
 		ProtoMajor: 1,
 		ProtoMinor: 1,
 		URL:        url,

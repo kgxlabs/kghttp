@@ -8,7 +8,7 @@ The goal is not to replace the standard library or popular tools like `net/http`
 
 | Package | Status | Description |
 |---------|--------|-------------|
-| [`kghttp`](./kghttp) | **Available** | HTTP/1.1 server on raw TCP — request/response parsing, transfer readers, chunked bodies, trailers |
+| [`kghttp`](./kghttp) | **Available** | HTTP/1.1 client and server on raw TCP — request/response parsing, transfer readers, chunked bodies, trailers |
 | [`kgurl`](./kgurl) | **Available** | URL parsing wrapper around Go's `net/url`, intended to grow into a local implementation |
 | [`kgbuf`](./kgbuf) | **Available** | Minimal buffered I/O utilities for this stack |
 | `kgroute` | **Coming Soon** | Minimal HTTP router (Chi-like API, fewer features) |
@@ -62,7 +62,7 @@ go test ./kgbuf/...
 ├── go.mod
 ├── kgbuf/               # Minimal buffered I/O utilities (available)
 │   └── README.md
-├── kghttp/              # HTTP/1.1 server (available)
+├── kghttp/              # HTTP/1.1 client/server (available)
 │   └── README.md
 ├── kgurl/               # URL parser wrapper (available)
 │   └── README.md

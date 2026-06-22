@@ -17,7 +17,7 @@ It is similar in spirit to parts of Go's `bufio`, but smaller and tailored to th
 | `ReadSlice(delim byte)` | Implemented | Reads through the next delimiter byte and returns a slice backed by the internal buffer |
 | `ReadString(delim string)` | Implemented | Reads through the next delimiter and returns the consumed string |
 | `ReadStringLimit(delim string, limit int)` | Implemented | Reads through the next delimiter string while enforcing a byte budget |
-| `Peek(n int)` | Implemented | Reads the next `n` bytes into the internal buffer without consuming them |
+| `Peek(n int)` | Implemented | Returns the next `n` unread bytes without consuming them |
 | `Buffered()` | Implemented | Returns the number of bytes currently buffered and unread |
 | `Size()` | Implemented | Returns the current internal buffer capacity |
 | `Reset(io.Reader)` | Implemented | Reuses the reader with a new underlying `io.Reader` |
@@ -189,7 +189,7 @@ func main() {
 | `Reader.ReadSlice(delim byte)` | Reads until `delim` is found and returns a slice backed by the internal buffer |
 | `Reader.ReadString(delim string)` | Reads until `delim` is found and includes `delim` in the returned string |
 | `Reader.ReadStringLimit(delim string, limit int)` | String wrapper around `ReadBytesLimit` |
-| `Reader.Peek(n int)` | Buffers and returns the next `n` bytes without advancing the read cursor |
+| `Reader.Peek(n int)` | Returns the next `n` unread bytes without advancing the read cursor |
 | `Reader.Buffered()` | Reports how many bytes are currently buffered |
 | `Reader.Size()` | Reports the current buffer capacity |
 | `Reader.Reset(io.Reader)` | Clears buffered state and switches to a new underlying reader |
@@ -219,8 +219,9 @@ func main() {
 - If `ReadSlice` cannot find the delimiter before the buffer fills, it returns `ErrBufferFull`.
 - `ReadBytesLimit` and `ReadStringLimit` return `ErrByteReadLimitReached` when the delimiter is not found before the byte budget is exhausted.
 - `Peek(0)` returns an empty slice and no error.
-- `Peek(n)` stores the returned bytes in the buffer without consuming them.
-- `Peek(n)` returns `ErrPartialRead` when fewer than `n` bytes are available.
+- `Peek(n)` returns already-buffered unread bytes first and reads only enough additional bytes to satisfy `n`.
+- `Peek(n)` does not advance the read cursor.
+- `Peek(n)` returns `ErrPartialRead` with the available unread bytes when fewer than `n` bytes are available.
 - `Reset` clears buffered data and read/write cursor state.
 - The writer keeps data in an internal buffer until the buffer fills, a large write bypasses the buffer, or `Flush` is called.
 - `Write` returns the number of bytes accepted from the provided slice.

@@ -180,11 +180,11 @@ func TestReaderPeek(t *testing.T) {
 	assert.Equal(t, 5, reader.Buffered())
 	b, err = reader.Peek(6)
 	require.NoError(t, err)
-	assert.Equal(t, " world", string(b))
-	assert.Equal(t, 11, reader.Buffered())
-	b, err = reader.Peek(5)
+	assert.Equal(t, "hello ", string(b))
+	assert.Equal(t, 6, reader.Buffered())
+	b, err = reader.Peek(12)
 	require.Error(t, err)
-	assert.Equal(t, 0, len(b))
+	assert.Equal(t, 11, len(b))
 
 	// Valid: Peek zero byte
 	reader = newTestReader("hello world", 8)
@@ -200,11 +200,11 @@ func TestReaderPeek(t *testing.T) {
 	assert.Equal(t, 5, reader.Buffered())
 	b, err = reader.Peek(5)
 	require.NoError(t, err)
-	assert.Equal(t, " worl", string(b))
-	assert.Equal(t, 10, reader.Buffered())
-	b, err = reader.Peek(5)
+	assert.Equal(t, "hello", string(b))
+	assert.Equal(t, 5, reader.Buffered())
+	b, err = reader.Peek(12)
 	require.Error(t, err)
-	assert.Equal(t, 1, len(b))
+	assert.Equal(t, 11, len(b))
 
 	// Invalid: No data is available
 	reader = newTestReader("", 5)
