@@ -9,32 +9,34 @@ import (
 )
 
 func TestWriterWrite(t *testing.T) {
-	// Valid: Underlying writer receives the data
-	ds := &bytes.Buffer{}
-	w := NewWriterSize(ds, 11)
-	_, err := w.Write([]byte("hello world"))
-	require.NoError(t, err)
-	err = w.Flush()
-	require.NoError(t, err)
-	assert.Equal(t, "hello world", ds.String())
+	t.Run("underlying writer receives the data", func(t *testing.T) {
+		ds := &bytes.Buffer{}
+		w := NewWriterSize(ds, 11)
+		_, err := w.Write([]byte("hello world"))
+		require.NoError(t, err)
+		err = w.Flush()
+		require.NoError(t, err)
+		assert.Equal(t, "hello world", ds.String())
+	})
 
-	// Valid: No Data if not Flush-ed
-	ds = &bytes.Buffer{}
-	w = NewWriter(ds)
-	_, err = w.Write([]byte("hello world"))
-	require.NoError(t, err)
-	assert.Equal(t, "", ds.String())
+	t.Run("no data if not flushed", func(t *testing.T) {
+		ds := &bytes.Buffer{}
+		w := NewWriter(ds)
+		_, err := w.Write([]byte("hello world"))
+		require.NoError(t, err)
+		assert.Equal(t, "", ds.String())
+	})
 
-	// Valid: Large data does not need Flush-ing
-	ds = &bytes.Buffer{}
-	w = NewWriterSize(ds, 10)
-	_, err = w.Write([]byte("hello world"))
-	require.NoError(t, err)
-	assert.Equal(t, "hello world", ds.String())
+	t.Run("large data does not need flushing", func(t *testing.T) {
+		ds := &bytes.Buffer{}
+		w := NewWriterSize(ds, 10)
+		_, err := w.Write([]byte("hello world"))
+		require.NoError(t, err)
+		assert.Equal(t, "hello world", ds.String())
 
-	// Valid: Flushing empty buffer
-	err = w.Flush()
-	require.NoError(t, err)
+		err = w.Flush()
+		require.NoError(t, err)
+	})
 }
 
 func TestWriterWriteFlushesBytesCopiedToFillBuffer(t *testing.T) {

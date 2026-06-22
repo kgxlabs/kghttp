@@ -10,113 +10,120 @@ import (
 )
 
 func TestFixedWriterWrite(t *testing.T) {
-	// Valid: Write specified content length
-	ds := &bytes.Buffer{}
-	bw := kgbuf.NewWriter(ds)
-	fw := NewFixedWriter(bw, func() Headers {
-		return Headers{
-			"content-length": "11",
-		}
+	t.Run("write specified content length", func(t *testing.T) {
+		ds := &bytes.Buffer{}
+		bw := kgbuf.NewWriter(ds)
+		fw := NewFixedWriter(bw, func() Headers {
+			return Headers{
+				"content-length": "11",
+			}
+		})
+		_, err := fw.Write([]byte("hello world"))
+		require.NoError(t, err)
+		err = fw.Flush()
+		require.NoError(t, err)
+		assert.Contains(t, ds.String(), "hello world")
 	})
-	_, err := fw.Write([]byte("hello world"))
-	require.NoError(t, err)
-	err = fw.Flush()
-	require.NoError(t, err)
-	assert.Contains(t, ds.String(), "hello world")
 
-	// Valid: Write zero length content
-	ds = &bytes.Buffer{}
-	bw = kgbuf.NewWriter(ds)
-	fw = NewFixedWriter(bw, func() Headers {
-		return Headers{
-			"content-length": "0",
-		}
+	t.Run("write zero length content", func(t *testing.T) {
+		ds := &bytes.Buffer{}
+		bw := kgbuf.NewWriter(ds)
+		fw := NewFixedWriter(bw, func() Headers {
+			return Headers{
+				"content-length": "0",
+			}
+		})
+		n, err := fw.Write([]byte(""))
+		err = fw.Flush()
+		require.NoError(t, err)
+		require.NoError(t, err)
+		assert.Equal(t, 0, n)
 	})
-	n, err := fw.Write([]byte(""))
-	err = fw.Flush()
-	require.NoError(t, err)
-	require.NoError(t, err)
-	assert.Equal(t, 0, n)
 
-	// Invalid: Body exceeds declared content length
-	ds = &bytes.Buffer{}
-	bw = kgbuf.NewWriter(ds)
-	fw = NewFixedWriter(bw, func() Headers {
-		return Headers{
-			"content-length": "11",
-		}
+	t.Run("body exceeds declared content length", func(t *testing.T) {
+		ds := &bytes.Buffer{}
+		bw := kgbuf.NewWriter(ds)
+		fw := NewFixedWriter(bw, func() Headers {
+			return Headers{
+				"content-length": "11",
+			}
+		})
+		n, err := fw.Write([]byte("hello world!"))
+		require.Error(t, err)
+		assert.Equal(t, 0, n)
 	})
-	n, err = fw.Write([]byte("hello world!"))
-	require.Error(t, err)
-	assert.Equal(t, 0, n)
 
-	// Invalid: Partial body data
-	ds = &bytes.Buffer{}
-	bw = kgbuf.NewWriter(ds)
-	fw = NewFixedWriter(bw, func() Headers {
-		return Headers{
-			"content-length": "11",
-		}
+	t.Run("partial body data", func(t *testing.T) {
+		ds := &bytes.Buffer{}
+		bw := kgbuf.NewWriter(ds)
+		fw := NewFixedWriter(bw, func() Headers {
+			return Headers{
+				"content-length": "11",
+			}
+		})
+		_, err := fw.Write([]byte("hello"))
+		require.NoError(t, err)
+		err = fw.Flush()
+		require.NoError(t, err)
+		err = fw.Close()
+		require.Error(t, err)
 	})
-	n, err = fw.Write([]byte("hello"))
-	require.NoError(t, err)
-	err = fw.Flush()
-	require.NoError(t, err)
-	err = fw.Close()
-	require.Error(t, err)
 
-	// Invalid: no content length header
-	ds = &bytes.Buffer{}
-	bw = kgbuf.NewWriter(ds)
-	fw = NewFixedWriter(bw, func() Headers {
-		return Headers{}
+	t.Run("no content length header", func(t *testing.T) {
+		ds := &bytes.Buffer{}
+		bw := kgbuf.NewWriter(ds)
+		fw := NewFixedWriter(bw, func() Headers {
+			return Headers{}
+		})
+		_, err := fw.Write([]byte("hello"))
+		require.Error(t, err)
 	})
-	_, err = fw.Write([]byte("hello"))
-	require.Error(t, err)
 
-	// Invalid: Write after Close
-	ds = &bytes.Buffer{}
-	bw = kgbuf.NewWriter(ds)
-	fw = NewFixedWriter(bw, func() Headers {
-		return Headers{"content-length": "11"}
+	t.Run("write after close", func(t *testing.T) {
+		ds := &bytes.Buffer{}
+		bw := kgbuf.NewWriter(ds)
+		fw := NewFixedWriter(bw, func() Headers {
+			return Headers{"content-length": "11"}
+		})
+		_, err := fw.Write([]byte("hello world"))
+		require.NoError(t, err)
+		err = fw.Flush()
+		require.NoError(t, err)
+		err = fw.Close()
+		require.NoError(t, err)
+		_, err = fw.Write([]byte("hi"))
+		require.Error(t, err)
 	})
-	_, err = fw.Write([]byte("hello world"))
-	require.NoError(t, err)
-	err = fw.Flush()
-	require.NoError(t, err)
-	err = fw.Close()
-	require.NoError(t, err)
-	_, err = fw.Write([]byte("hi"))
-	require.Error(t, err)
 
-	// Invalid: Flush after Close
-	ds = &bytes.Buffer{}
-	bw = kgbuf.NewWriter(ds)
-	fw = NewFixedWriter(bw, func() Headers {
-		return Headers{"content-length": "11"}
+	t.Run("flush after close", func(t *testing.T) {
+		ds := &bytes.Buffer{}
+		bw := kgbuf.NewWriter(ds)
+		fw := NewFixedWriter(bw, func() Headers {
+			return Headers{"content-length": "11"}
+		})
+		_, err := fw.Write([]byte("hello world"))
+		require.NoError(t, err)
+		err = fw.Flush()
+		require.NoError(t, err)
+		err = fw.Close()
+		require.NoError(t, err)
+		err = fw.Flush()
+		require.Error(t, err)
 	})
-	_, err = fw.Write([]byte("hello world"))
-	require.NoError(t, err)
-	err = fw.Flush()
-	require.NoError(t, err)
-	err = fw.Close()
-	require.NoError(t, err)
-	err = fw.Flush()
-	require.Error(t, err)
 
-	// Invalid: Multiple Close
-	ds = &bytes.Buffer{}
-	bw = kgbuf.NewWriter(ds)
-	fw = NewFixedWriter(bw, func() Headers {
-		return Headers{"content-length": "11"}
+	t.Run("multiple close", func(t *testing.T) {
+		ds := &bytes.Buffer{}
+		bw := kgbuf.NewWriter(ds)
+		fw := NewFixedWriter(bw, func() Headers {
+			return Headers{"content-length": "11"}
+		})
+		_, err := fw.Write([]byte("hello world"))
+		require.NoError(t, err)
+		err = fw.Flush()
+		require.NoError(t, err)
+		err = fw.Close()
+		require.NoError(t, err)
+		err = fw.Close()
+		require.Error(t, err)
 	})
-	_, err = fw.Write([]byte("hello world"))
-	require.NoError(t, err)
-	err = fw.Flush()
-	require.NoError(t, err)
-	err = fw.Close()
-	require.NoError(t, err)
-	err = fw.Close()
-	require.Error(t, err)
-
 }
