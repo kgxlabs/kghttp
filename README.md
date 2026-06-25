@@ -1,6 +1,8 @@
 # kgx
 
-A Go monorepo for building a **minimal stack from scratch**—small, readable packages you can understand end to end, without leaning on large frameworks.
+A monorepo for building **minimal tools from scratch**—small, readable packages you can understand end to end, without leaning on large frameworks.
+
+The repo is currently centered on Go networking and I/O packages. Planned work also includes compiler and code-generation experiments where they fit the same learn-by-building approach.
 
 The goal is not to replace the standard library or popular tools like `net/http` and Chi. It is to learn how the pieces fit together by implementing them yourself, then composing them into something usable.
 
@@ -14,8 +16,9 @@ The goal is not to replace the standard library or popular tools like `net/http`
 | `kgroute` | **Coming Soon** | Minimal HTTP router (Chi-like API, fewer features) |
 | `kgcache` | **Coming Soon** | Small in-memory cache |
 | `kgdb` | **Coming Soon** | Minimal embedded database |
+| `kgsmith` | **Planned** | Zig-based SQL-first compiler and code generation toolkit for PostgreSQL schemas, with Go and TypeScript APIs |
 
-Package names may change as the stack grows. Each subdirectory is its own Go package under one module. See each package's `README.md` for API details and usage.
+Package names may change as the stack grows. Current Go package subdirectories live under one module. See each package's `README.md` for API details and usage.
 
 ## Examples
 
@@ -66,11 +69,12 @@ go test ./kgbuf/...
 │   └── README.md
 ├── kgurl/               # URL parser wrapper (available)
 │   └── README.md
+├── kgsmith/             # Zig SQL-first code generator with Go/TypeScript APIs (planned)
 └── examples/            # Runnable demos
     └── httpserver/
 ```
 
-Coming soon packages (`kgroute`, `kgcache`, `kgdb`, …) will appear as sibling directories under the module root.
+Coming soon packages and projects (`kgroute`, `kgcache`, `kgdb`, `kgsmith`, …) will appear as sibling directories under the repository root.
 
 ## Philosophy
 
