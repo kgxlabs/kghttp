@@ -3,7 +3,7 @@ package kghttp
 import (
 	"bytes"
 	"errors"
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/kgxlabs/kghttp/kgbuf"
 	"io"
 	"strconv"
 )

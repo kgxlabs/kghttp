@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/kgxlabs/kghttp/kgbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -1,10 +1,8 @@
-# kgx
+# kghttp
 
-A monorepo for building **minimal tools from scratch**—small, readable packages you can understand end to end, without leaning on large frameworks.
+A small Go HTTP layer built from scratch.
 
-The repo is currently centered on Go networking and I/O packages. Planned work also includes compiler and code-generation experiments where they fit the same learn-by-building approach.
-
-The goal is not to replace the standard library or popular tools like `net/http` and Chi. It is to learn how the pieces fit together by implementing them yourself, then composing them into something usable.
+The goal is not to replace the standard library or popular tools like `net/http`. It is to learn how HTTP pieces fit together by implementing request parsing, response writing, transfer handling, and client/server behavior directly.
 
 ## Packages
 
@@ -14,11 +12,8 @@ The goal is not to replace the standard library or popular tools like `net/http`
 | [`kgurl`](./kgurl) | **Available** | URL parsing wrapper around Go's `net/url`, intended to grow into a local implementation |
 | [`kgbuf`](./kgbuf) | **Available** | Minimal buffered I/O utilities for this stack |
 | `kgroute` | **Coming Soon** | Minimal HTTP router (Chi-like API, fewer features) |
-| `kgcache` | **Coming Soon** | Small in-memory cache |
-| `kgdb` | **Coming Soon** | Minimal embedded database |
-| `kgsmith` | **Planned** | Zig-based SQL-first compiler and code generation toolkit for PostgreSQL schemas, with Go and TypeScript APIs |
 
-Package names may change as the stack grows. Current Go package subdirectories live under one module. See each package's `README.md` for API details and usage.
+See each package's `README.md` for API details and usage.
 
 ## Examples
 
@@ -33,16 +28,16 @@ Runnable examples live under [`examples/`](./examples/). The current example ser
 Clone the repo:
 
 ```bash
-git clone https://github.com/Kaung-HtetKyaw/kgx.git
-cd kgx
+git clone https://github.com/kgxlabs/kghttp.git
+cd kghttp
 ```
 
 Import a package from the module root:
 
 ```go
-import "github.com/Kaung-HtetKyaw/kgx/kghttp"
-import "github.com/Kaung-HtetKyaw/kgx/kgurl"
-import "github.com/Kaung-HtetKyaw/kgx/kgbuf"
+import "github.com/kgxlabs/kghttp/kghttp"
+import "github.com/kgxlabs/kghttp/kgurl"
+import "github.com/kgxlabs/kghttp/kgbuf"
 ```
 
 Run tests for everything:
@@ -69,12 +64,9 @@ go test ./kgbuf/...
 │   └── README.md
 ├── kgurl/               # URL parser wrapper (available)
 │   └── README.md
-├── kgsmith/             # Zig SQL-first code generator with Go/TypeScript APIs (planned)
 └── examples/            # Runnable demos
     └── httpserver/
 ```
-
-Coming soon packages and projects (`kgroute`, `kgcache`, `kgdb`, `kgsmith`, …) will appear as sibling directories under the repository root.
 
 ## Philosophy
 

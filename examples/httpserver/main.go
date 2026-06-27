@@ -12,8 +12,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/Kaung-HtetKyaw/kgx/examples/assets"
-	"github.com/Kaung-HtetKyaw/kgx/kghttp"
+	"github.com/kgxlabs/kghttp/examples/assets"
+	"github.com/kgxlabs/kghttp/kghttp"
 )
 
 const port = 8000

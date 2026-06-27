@@ -4,8 +4,8 @@ import (
 	"io"
 	"testing"
 
-	"github.com/Kaung-HtetKyaw/kgx/internal/testutil"
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/kgxlabs/kghttp/internal/testutil"
+	"github.com/kgxlabs/kghttp/kgbuf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

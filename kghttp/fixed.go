@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/kgxlabs/kghttp/kgbuf"
 )
 
 type fixedWriter struct {
