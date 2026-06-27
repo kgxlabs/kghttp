@@ -9,8 +9,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
-	"github.com/Kaung-HtetKyaw/kgx/kgurl"
+	"github.com/kgxlabs/kghttp/kgbuf"
+	"github.com/kgxlabs/kghttp/kgurl"
 )
 
 type Request struct {

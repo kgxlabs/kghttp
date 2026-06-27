@@ -1,6 +1,6 @@
 # kgurl
 
-`kgurl` is the URL package for `kgx`.
+`kgurl` is the URL package for `kghttp`.
 
 For now, it is a thin wrapper around Go's standard [`net/url`](https://pkg.go.dev/net/url) package. The goal is to let the rest of the stack depend on `kgurl.URL` and `kgurl.Parse` now, while leaving room to replace the internals with a local implementation later.
 

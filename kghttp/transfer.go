@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
-	"github.com/Kaung-HtetKyaw/kgx/kghttp/internal"
+	"github.com/kgxlabs/kghttp/kgbuf"
+	"github.com/kgxlabs/kghttp/kghttp/internal"
 )
 
 type bodyReader struct {

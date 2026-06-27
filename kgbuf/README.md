@@ -1,6 +1,6 @@
 # kgbuf
 
-`kgbuf` is a small buffered I/O package for the `kgx` stack. It is intentionally minimal: the goal is to provide just enough buffered reading and writing behavior for the surrounding packages while keeping the implementation easy to read.
+`kgbuf` is a small buffered I/O package for the `kghttp` stack. It is intentionally minimal: the goal is to provide just enough buffered reading and writing behavior for the surrounding packages while keeping the implementation easy to read.
 
 It is similar in spirit to parts of Go's `bufio`, but smaller and tailored to this project.
 
@@ -35,7 +35,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/kgxlabs/kghttp/kgbuf"
 )
 
 func main() {
@@ -59,7 +59,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/kgxlabs/kghttp/kgbuf"
 )
 
 func main() {
@@ -84,7 +84,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/kgxlabs/kghttp/kgbuf"
 )
 
 func main() {
@@ -108,7 +108,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/kgxlabs/kghttp/kgbuf"
 )
 
 func main() {
@@ -133,7 +133,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/kgxlabs/kghttp/kgbuf"
 )
 
 func main() {
@@ -157,7 +157,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/kgxlabs/kghttp/kgbuf"
 )
 
 func main() {

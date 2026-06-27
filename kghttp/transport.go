@@ -7,7 +7,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/kgxlabs/kghttp/kgbuf"
 )
 
 type Transport struct {

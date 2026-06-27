@@ -62,16 +62,16 @@ This project exists to understand HTTP on top of TCP—not to replace `net/http`
 
 ## Installation
 
-This package lives in the [`kgx`](https://github.com/Kaung-HtetKyaw/kgx) monorepo.
+This package lives in the [`kghttp`](https://github.com/kgxlabs/kghttp) repository.
 
 ```bash
-go get github.com/Kaung-HtetKyaw/kgx/kghttp
+go get github.com/kgxlabs/kghttp/kghttp
 ```
 
 Import:
 
 ```go
-import "github.com/Kaung-HtetKyaw/kgx/kghttp"
+import "github.com/kgxlabs/kghttp/kghttp"
 ```
 
 ## Quick start
@@ -83,7 +83,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/Kaung-HtetKyaw/kgx/kghttp"
+	"github.com/kgxlabs/kghttp/kghttp"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package kghttp
 import (
 	"bytes"
 	"errors"
-	"github.com/Kaung-HtetKyaw/kgx/kgurl"
+	"github.com/kgxlabs/kghttp/kgurl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"

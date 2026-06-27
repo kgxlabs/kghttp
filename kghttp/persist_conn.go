@@ -5,7 +5,7 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/Kaung-HtetKyaw/kgx/kgbuf"
+	"github.com/kgxlabs/kghttp/kgbuf"
 )
 
 type persistConn struct {
